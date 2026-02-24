@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.env
+
+# Node / React
+node_modules/
+smart-thermostat/node_modules/
+smart-thermostat/dist/
+
+# Database & State (Don't upload history or keys)
+*.db
+*.sqlite3
+status.json
+control.json
+lockout.json
+remote.json
+deploy.sh
+settings.json
+
+# System
+.DS_Store
+dist/

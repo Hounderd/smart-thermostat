@@ -1,0 +1,10 @@
+{
+    "cost_kwh": 0.12,
+    "cost_therm": 1.00,
+    "ac_kw": 3.0,
+    "furnace_btu": 80000,
+    "filter_max_hours": 300,
+    "filter_current_hours": 0,
+    "eco_hysteresis_mild": 3.0,
+    "eco_hysteresis_strict": 0.5
+}
