@@ -11,16 +11,16 @@ A professional-grade, open-source smart thermostat built with **Python (FastAPI)
 Here is the fully assembled smart thermostat, alongside the internal wiring and structural design.
 
 <p align="center">
-  <img src="download.nodd.dev/thermostat_wall.jpg" width="45%" alt="Finished Smart Thermostat on Wall" />
+  <img src="https://download.nodd.dev/thermostat_wall.jpg" width="25%" alt="Finished Smart Thermostat on Wall" />
   &nbsp;
-  <img src="download.nodd.dev/internal_wiring.jpg" width="45%" alt="Internal Wiring & Relays" />
+  <img src="https://download.nodd.dev/internal_wiring.jpg" width="25%" alt="Internal Wiring & Relays" />
 </p>
 
-## Custom 3D Printed Enclosure (availble here)
+## Custom 3D Printed Enclosure [(download here)](https://download.nodd.dev/thermostat-case.rar)
 A minimal 3D-printable case designed specifically to house the Raspberry Pi alongside the 4-Channel Relay Hat perfectly. 
 
 <p align="center">
-  <img src="download.nodd.dev/case_model.png" width="70%" alt="3D Printable Case Model" />
+  <img src="https://download.nodd.dev/case_model.png" width="50%" alt="3D Printable Case Model" />
 </p>
 
 ---
