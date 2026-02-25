@@ -8,8 +8,6 @@ A professional-grade, open-source smart thermostat built with **Python (FastAPI)
 
 ---
 
-## � Gallery & 3D Printable Case
-
 Here is the fully assembled smart thermostat, alongside the internal wiring and structural design.
 
 <p align="center">
@@ -18,8 +16,8 @@ Here is the fully assembled smart thermostat, alongside the internal wiring and 
   <img src="docs/internal_wiring.jpg" width="45%" alt="Internal Wiring & Relays" />
 </p>
 
-### Custom 3D Printed Enclosure
-A bespoke 3D-printable case designed specifically to house the Raspberry Pi alongside the 4-Channel Relay Hat perfectly. 
+## Custom 3D Printed Enclosure (availble here)
+A minimal 3D-printable case designed specifically to house the Raspberry Pi alongside the 4-Channel Relay Hat perfectly. 
 
 <p align="center">
   <img src="docs/case_model.png" width="70%" alt="3D Printable Case Model" />
@@ -27,7 +25,7 @@ A bespoke 3D-printable case designed specifically to house the Raspberry Pi alon
 
 ---
 
-## �🚀 Features
+## 🚀 Features
 
 *   **Complete HVAC Control:** Supports 24V Heating, Cooling, and Fan systems (Standard Split Systems).
 *   **Safety First:** Built-in equipment protection (e.g., 5-minute compressor short-cycle lockout).
@@ -135,4 +133,5 @@ The FastAPI app contains intelligent IP-blocking middleware:
 *   **Local Network (192.168.x.x or 10.x.x.x):** Allowed full read/write Control.
 *   **External Network (Port Forwarded/Proxy):** Downgraded to a Read-Only Mode automatically. Guests can view the status but cannot manipulate the temperature.
 
+##
 Created with ❤️ by [Hounderd](https://github.com/Hounderd).
