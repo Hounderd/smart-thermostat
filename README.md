@@ -2,6 +2,8 @@
 
 A professional-grade, open-source smart thermostat built with **Python (FastAPI)** and **React**. Designed to run on a Raspberry Pi, this system offers standard HVAC control plus advanced "Eco Intelligence" features typically found in high-end proprietary devices like Nest or Ecobee.
 
+![PyThermostat dashboard screenshot](https://download.nodd.dev/smart-thermostat-screenshot.png)
+
 ![Status](https://img.shields.io/badge/Status-Stable-green)
 ![Tech](https://img.shields.io/badge/Stack-Python%20%2B%20React-blue)
 ![DB](https://img.shields.io/badge/Database-SQLite-lightgrey)
