@@ -27,6 +27,7 @@
 - `9ce4fe9` Fix thermostat control responsiveness
 - `e3a23a7` Harden weather fetch retries
 - `d7fb22e` Add idle-only automatic Pi reboot setting
+- `60939da` Serve frontend directly from the nested Vite dist
 
 ## PR / Git Workflow Decisions
 - Use branch + PR flow for public repo changes.
@@ -34,6 +35,9 @@
 - Do not use connector reactions on public PRs.
   - A connector bot reaction was added to PR `#1`
   - Attempts to remove it failed due GitHub permission restrictions
+- Personal Codex auto review was enabled in the GitHub/Codex settings UI during PR `#2`.
+  - User disabled it afterward.
+  - The remaining top-level Codex review on PR `#2` was minimized via GraphQL as `outdated`.
 
 ## Live Deployment Notes
 - `thermostat-api` runs from `/home/nod/PyThermostat`
@@ -60,7 +64,10 @@
 - Public `temp.nodd.dev` may briefly serve stale cached frontend assets after deploys, even when Pi files are correct.
 
 ## Current Branching Context
-- `main` currently contains the shipped idle-only reboot work.
-- There is a new local branch for the frontend serving fix:
-  - `feature/frontend-dist-source-of-truth`
-- Future agent should verify whether that branch has been published/merged/deployed before assuming the live deploy path fix is complete.
+- `main` already contains the nested frontend dist serving fix from PR `#2`.
+- Active local branch: `feature/sanitize-frontend-path`
+  - Purpose: reject `..` traversal and absolute-path access in frontend file serving
+  - Tests already exist in `tests/test_frontend_paths.py`
+  - Verification already passed locally before compaction:
+    - `python -m unittest tests.test_frontend_paths tests.test_auto_reboot tests.test_cooling_lockout tests.test_weather_fetch tests.test_api_status`
+    - `python -m compileall api.py thermostat.py auto_reboot.py cooling_lockout.py weather_fetch.py`

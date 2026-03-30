@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from api import frontend_path
+from api import frontend_path, resolve_frontend_request_path
 
 
 class FrontendPathTests(unittest.TestCase):
@@ -14,6 +14,12 @@ class FrontendPathTests(unittest.TestCase):
         asset_path = frontend_path("assets")
 
         self.assertTrue(asset_path.endswith(os.path.join("smart-thermostat", "dist", "assets")))
+
+    def test_resolve_frontend_request_path_rejects_parent_directory_traversal(self):
+        self.assertIsNone(resolve_frontend_request_path("../api.py"))
+
+    def test_resolve_frontend_request_path_rejects_absolute_paths(self):
+        self.assertIsNone(resolve_frontend_request_path("/etc/passwd"))
 
 
 if __name__ == "__main__":
