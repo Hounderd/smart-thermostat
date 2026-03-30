@@ -56,6 +56,8 @@ class SystemSettings(BaseModel):
     filter_max_hours: float
     eco_hysteresis_mild: float
     eco_hysteresis_strict: float
+    auto_reboot_enabled: bool
+    auto_reboot_hours: float
 
 
 def read_json_file(path, fallback=None):

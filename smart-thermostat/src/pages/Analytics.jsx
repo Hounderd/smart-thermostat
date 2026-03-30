@@ -10,7 +10,8 @@ function Analytics() {
   const [settings, setSettings] = useState({
     cost_kwh: 0.14, cost_therm: 1.10, ac_kw: 3.5, furnace_btu: 80000, 
     filter_current_hours: 0, filter_max_hours: 300,
-    eco_hysteresis_mild: 3.0, eco_hysteresis_strict: 0.5
+    eco_hysteresis_mild: 3.0, eco_hysteresis_strict: 0.5,
+    auto_reboot_enabled: false, auto_reboot_hours: 24
   });
   const [stats, setStats] = useState({ min: 0, max: 0, runtime: 0, avg_humidity: 0 });
   const [estCost, setEstCost] = useState(0);
@@ -44,7 +45,9 @@ function Analytics() {
 
     // 3. Settings
     fetch(`${API_URL}/settings`).then(res => res.json()).then(data => {
-      if(data.cost_kwh) setSettings(data);
+      if (data.cost_kwh) {
+        setSettings(current => ({ ...current, ...data }));
+      }
     });
 
   }, []);
@@ -148,6 +151,42 @@ function Analytics() {
               </div>
            </div>
            
+           <div className="grid grid-cols-1 md:grid-cols-[1.2fr_0.8fr] gap-4 border-t border-gray-800 pt-4 pb-4">
+              <div className="bg-background/40 border border-gray-800 rounded-2xl p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <label className="text-xs text-gray-400 uppercase tracking-widest">Automatic Pi Restart</label>
+                    <p className="text-[11px] text-gray-500 mt-2">
+                      Reboots the Raspberry Pi after the configured uptime, but only once the HVAC is idle. Active heating and cooling runs are never interrupted.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ ...settings, auto_reboot_enabled: !settings.auto_reboot_enabled })}
+                    className={`min-w-[88px] rounded-full px-3 py-2 text-xs font-bold transition-colors ${
+                      settings.auto_reboot_enabled
+                        ? 'bg-neonBlue text-black'
+                        : 'bg-card border border-gray-700 text-gray-400'
+                    }`}
+                  >
+                    {settings.auto_reboot_enabled ? 'ENABLED' : 'DISABLED'}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">Reboot Interval (Hours)</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={settings.auto_reboot_hours}
+                  onChange={e => setSettings({ ...settings, auto_reboot_hours: parseFloat(e.target.value) })}
+                  className="w-full bg-background border border-gray-700 rounded p-2 text-white"
+                />
+                <p className="text-[10px] text-gray-500 mt-2">Default 24 hours. The reboot waits until the system is idle.</p>
+              </div>
+           </div>
+
            <div className="border-t border-gray-700 pt-4 flex justify-between items-center">
               <div className="flex flex-col">
                  <span className="text-xs text-gray-500">Filter Life</span>

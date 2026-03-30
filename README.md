@@ -125,10 +125,15 @@ The system parameters can be customized directly in the Analytics Dashboard UI, 
     "ac_kw": 3.5,
     "furnace_btu": 80000,
     "filter_max_hours": 300,
+    "filter_current_hours": 0,
     "eco_hysteresis_mild": 3.0,
-    "eco_hysteresis_strict": 0.5
+    "eco_hysteresis_strict": 0.5,
+    "auto_reboot_enabled": false,
+    "auto_reboot_hours": 24
 }
 ```
+
+When automatic reboot is enabled, the thermostat marks a reboot as due after the configured uptime interval and waits until the HVAC is idle before requesting a full Raspberry Pi reboot. It never interrupts an active heating or cooling run.
 
 ## 🔒 Security & Access Control
 The FastAPI app contains intelligent IP-blocking middleware:

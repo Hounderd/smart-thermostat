@@ -4,8 +4,15 @@ import board
 import json
 import os
 import sqlite3
+import subprocess
 import threading
 from datetime import datetime
+from auto_reboot import is_auto_reboot_due, should_attempt_idle_reboot
+from cooling_lockout import (
+    handle_active_system_stop,
+    load_last_cooling_stop,
+    save_last_cooling_stop,
+)
 from weather_fetch import WeatherFetchError, fetch_weather_snapshot
 
 # ---------------- CONFIGURATION ----------------
@@ -55,9 +62,13 @@ class SmartThermostat:
         self.iaq_score = 0
         
         self.is_active = False
+        self.active_call = None
         self.locked_out = False
         self.remote_active = False
         self.last_ac_time = self.load_lockout()
+        self.started_at = time.time()
+        self.last_reboot_attempt = 0
+        self.reboot_pending = False
 
         # Cycle Timing Tracking (New)
         self.current_run_start = 0
@@ -125,12 +136,10 @@ class SmartThermostat:
                 except: pass
 
     def load_lockout(self):
-        try:
-            with open(LOCKOUT_FILE, "r") as f: return json.load(f).get("last_off", 0)
-        except: return 0
+        return load_last_cooling_stop(LOCKOUT_FILE)
 
     def save_lockout(self):
-        with open(LOCKOUT_FILE, "w") as f: json.dump({"last_off": time.time()}, f)
+        self.last_ac_time = save_last_cooling_stop(LOCKOUT_FILE)
 
     def load_control(self):
         if not os.path.exists(CONTROL_FILE): return
@@ -147,7 +156,8 @@ class SmartThermostat:
         defaults = {
             "filter_current_hours": 0, "filter_max_hours": 300,
             "eco_hysteresis_mild": 3.0, "eco_hysteresis_strict": 0.5,
-            "cost_kwh": 0.14, "cost_therm": 1.10, "ac_kw": 3.5, "furnace_btu": 80000
+            "cost_kwh": 0.14, "cost_therm": 1.10, "ac_kw": 3.5, "furnace_btu": 80000,
+            "auto_reboot_enabled": False, "auto_reboot_hours": 24,
         }
         if not os.path.exists(SETTINGS_FILE): return defaults
         try:
@@ -327,6 +337,7 @@ class SmartThermostat:
             "filter_hours": self.settings.get("filter_current_hours", 0),
             "filter_max": self.settings.get("filter_max_hours", 300),
             "remote_active": self.remote_active,
+            "reboot_pending": self.reboot_pending,
             
             # RUNTIME METRICS (NEW)
             "run_start": self.current_run_start,
@@ -357,10 +368,43 @@ class SmartThermostat:
         GPIO.output(pin, GPIO.HIGH if state else GPIO.LOW)
 
     def all_off(self):
-        if self.is_active: self.record_cycle_end() # Capture duration on force kill
+        handle_active_system_stop(
+            active_call=self.active_call,
+            is_active=self.is_active,
+            on_cycle_end=self.record_cycle_end,
+            on_cooling_stop=self.save_lockout,
+        )
         self._relay(self.PIN_COOL, False)
         self._relay(self.PIN_HEAT, False)
         self.is_active = False
+        self.active_call = None
+
+    def update_auto_reboot_state(self, now):
+        self.reboot_pending = is_auto_reboot_due(
+            self.settings,
+            started_at=self.started_at,
+            now=now,
+        )
+
+    def maybe_auto_reboot(self, now):
+        if not should_attempt_idle_reboot(
+            reboot_due=self.reboot_pending,
+            is_active=self.is_active,
+            last_attempt_at=self.last_reboot_attempt,
+            now=now,
+            retry_delay_seconds=60,
+        ):
+            return
+
+        self.last_reboot_attempt = now
+        print("Auto reboot due and HVAC is idle. Requesting Raspberry Pi reboot.")
+        try:
+            subprocess.run(["sudo", "-n", "reboot"], check=True)
+        except (OSError, subprocess.CalledProcessError) as e:
+            print(f"Auto Reboot Error: {e}")
+            return
+
+        raise SystemExit("Auto reboot requested")
 
     def logic_loop(self, elapsed_seconds):
         self.load_control()
@@ -396,6 +440,7 @@ class SmartThermostat:
                 if not self.is_active and not self.locked_out:
                     self._relay(self.PIN_COOL, True)
                     self.is_active = True
+                    self.active_call = "COOL"
                     self.record_cycle_start() 
             
             elif self.current_temp < (active_target - active_hysteresis):
@@ -403,14 +448,15 @@ class SmartThermostat:
                     self._relay(self.PIN_COOL, False)
                     self.is_active = False
                     self.record_cycle_end() # <--- Capture Duration
-                    self.last_ac_time = time.time()
                     self.save_lockout()
+                    self.active_call = None
         
         elif self.mode == "HEAT":
             if self.current_temp < (active_target - active_hysteresis):
                 if not self.is_active:
                     self._relay(self.PIN_HEAT, True)
                     self.is_active = True
+                    self.active_call = "HEAT"
                     self.record_cycle_start() 
             
             elif self.current_temp > (active_target + active_hysteresis):
@@ -418,6 +464,7 @@ class SmartThermostat:
                     self._relay(self.PIN_HEAT, False)
                     self.is_active = False
                     self.record_cycle_end() # <--- Capture Duration
+                    self.active_call = None
 
         fan_should_be_on = False
         if self.fan_mode == "ON": fan_should_be_on = True
@@ -425,7 +472,9 @@ class SmartThermostat:
         elif self.mode == "HEAT" and self.is_active and self.FAN_ON_HEAT: fan_should_be_on = True
 
         self._relay(self.PIN_FAN, fan_should_be_on)
+        self.update_auto_reboot_state(time.time())
         self.write_status()
+        self.maybe_auto_reboot(time.time())
     
     def cleanup(self):
         self._relay(self.PIN_FAN, False)

@@ -6,5 +6,7 @@
     "filter_max_hours": 300,
     "filter_current_hours": 0,
     "eco_hysteresis_mild": 3.0,
-    "eco_hysteresis_strict": 0.5
+    "eco_hysteresis_strict": 0.5,
+    "auto_reboot_enabled": false,
+    "auto_reboot_hours": 24
 }
