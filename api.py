@@ -13,6 +13,7 @@ app = FastAPI()
 
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
 STATUS_FILE = "status.json"
 CONTROL_FILE = "control.json"
 REMOTE_FILE = "remote.json"
@@ -58,6 +59,10 @@ class SystemSettings(BaseModel):
     eco_hysteresis_strict: float
     auto_reboot_enabled: bool
     auto_reboot_hours: float
+
+
+def frontend_path(*parts):
+    return os.path.join(APP_DIR, "smart-thermostat", "dist", *parts)
 
 
 def read_json_file(path, fallback=None):
@@ -135,14 +140,15 @@ def get_history():
     } for r in rows]
 
 # --- SERVE REACT ---
-app.mount("/assets", StaticFiles(directory="dist/assets"), name="assets")
+app.mount("/assets", StaticFiles(directory=frontend_path("assets")), name="assets")
 
 @app.get("/")
 async def serve_react_root():
-    return FileResponse("dist/index.html")
+    return FileResponse(frontend_path("index.html"))
 
 @app.get("/{full_path:path}")
 async def serve_react_app(full_path: str):
-    if os.path.exists(f"dist/{full_path}"):
-        return FileResponse(f"dist/{full_path}")
-    return FileResponse("dist/index.html")
+    requested_path = frontend_path(full_path)
+    if os.path.exists(requested_path):
+        return FileResponse(requested_path)
+    return FileResponse(frontend_path("index.html"))

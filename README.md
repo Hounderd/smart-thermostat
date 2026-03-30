@@ -99,6 +99,8 @@ npm install
 npm run build
 ```
 
+The FastAPI server serves the built frontend directly from `smart-thermostat/dist`. There is no separate root-level frontend artifact to sync during deploys.
+
 ### 4. Process Management (PM2)
 We highly recommend using PM2 to keep both the background logic daemon and the API server running resiliently:
 ```bash
