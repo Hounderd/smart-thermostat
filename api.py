@@ -65,6 +65,20 @@ def frontend_path(*parts):
     return os.path.join(APP_DIR, "smart-thermostat", "dist", *parts)
 
 
+def resolve_frontend_request_path(full_path):
+    if full_path.startswith(("/", "\\")) or os.path.isabs(full_path):
+        return None
+
+    normalized_path = os.path.normpath(full_path)
+    if normalized_path.startswith("..") or os.path.isabs(normalized_path):
+        return None
+
+    if normalized_path in ("", "."):
+        return frontend_path()
+
+    return frontend_path(*normalized_path.split(os.sep))
+
+
 def read_json_file(path, fallback=None):
     try:
         with open(path, "r") as f:
@@ -148,7 +162,7 @@ async def serve_react_root():
 
 @app.get("/{full_path:path}")
 async def serve_react_app(full_path: str):
-    requested_path = frontend_path(full_path)
-    if os.path.exists(requested_path):
+    requested_path = resolve_frontend_request_path(full_path)
+    if requested_path and os.path.exists(requested_path):
         return FileResponse(requested_path)
     return FileResponse(frontend_path("index.html"))
