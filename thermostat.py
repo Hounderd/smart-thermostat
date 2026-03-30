@@ -15,6 +15,7 @@ STATUS_FILE = "status.json"
 LOCKOUT_FILE = "lockout.json"
 REMOTE_FILE = "remote.json"
 SETTINGS_FILE = "settings.json"
+LOOP_INTERVAL = 1
 
 LAT = 43.19
 LON = -88.72
@@ -239,8 +240,8 @@ class SmartThermostat:
             self.last_run_duration = self.last_run_end - self.current_run_start
             self.current_run_start = 0
 
-    def update_filter_hours(self):
-        increment_hours = 5 / 3600
+    def update_filter_hours(self, elapsed_seconds):
+        increment_hours = elapsed_seconds / 3600
         self.settings["filter_current_hours"] += increment_hours
         if int(time.time()) % 300 < 5: 
             self.save_settings()
@@ -367,13 +368,13 @@ class SmartThermostat:
         self._relay(self.PIN_HEAT, False)
         self.is_active = False
 
-    def logic_loop(self):
+    def logic_loop(self, elapsed_seconds):
         self.load_control()
         self.get_readings()
         self.update_heat_loss_rate()
 
         if self.is_active:
-            self.update_filter_hours()
+            self.update_filter_hours(elapsed_seconds)
 
         active_target = self.target_temp
         active_hysteresis = self.HYSTERESIS
@@ -440,14 +441,20 @@ class SmartThermostat:
 def run():
     tstat = SmartThermostat()
     last_history_time = 0
+    last_loop_time = time.time()
     print("Thermostat Engine Started.")
     try:
         while True:
-            tstat.logic_loop()
+            loop_started = time.time()
+            elapsed_seconds = loop_started - last_loop_time
+            last_loop_time = loop_started
+
+            tstat.logic_loop(elapsed_seconds)
             if time.time() - last_history_time > 60:
                 tstat.save_history()
                 last_history_time = time.time()
-            time.sleep(5)
+            elapsed_runtime = time.time() - loop_started
+            time.sleep(max(0, LOOP_INTERVAL - elapsed_runtime))
     except KeyboardInterrupt: pass
     finally: tstat.cleanup()
 

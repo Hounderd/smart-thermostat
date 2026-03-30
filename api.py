@@ -7,6 +7,7 @@ import json
 import os
 import sqlite3
 import time
+from status_sync import merge_control_into_status
 
 app = FastAPI()
 
@@ -56,21 +57,33 @@ class SystemSettings(BaseModel):
     eco_hysteresis_mild: float
     eco_hysteresis_strict: float
 
+
+def read_json_file(path, fallback=None):
+    try:
+        with open(path, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return fallback
+
 @app.get("/status")
 def get_status(request: Request):
     if not os.path.exists(STATUS_FILE): return {"error": "Init..."}
     try:
-        with open(STATUS_FILE, "r") as f: 
-            data = json.load(f)
-            data["read_only"] = getattr(request.state, "is_read_only", False)
+        data = read_json_file(STATUS_FILE, {"error": "Read Error"})
+        if data.get("error"):
             return data
+
+        control = read_json_file(CONTROL_FILE)
+        data = merge_control_into_status(data, control)
+        data["read_only"] = getattr(request.state, "is_read_only", False)
+        return data
     except: return {"error": "Read Error"}
 
 @app.post("/control")
 def update_control(s: ControlSettings):
-    data = {"mode": s.mode, "target": s.target, "fan": s.fan, "eco": s.eco}
+    data = {"mode": s.mode, "target": s.target, "fan": s.fan, "eco": s.eco, "updated_at": time.time()}
     with open(CONTROL_FILE, "w") as f: json.dump(data, f)
-    return {"status": "ok"}
+    return {"status": "ok", "control": data}
 
 @app.get("/settings")
 def get_settings():

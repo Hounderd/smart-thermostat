@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Thermometer, Droplets, Flame, Snowflake, Power, Plus, Minus, Wind, Leaf, Gauge, Activity, Radio, Heart, CloudSun, Clock } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Thermometer, Droplets, Flame, Snowflake, Power, Plus, Minus, Wind, Leaf, Gauge, Activity, Radio, Heart, CloudSun } from 'lucide-react';
+import { buildControlTransaction, matchesControlPayload } from './dashboardState';
 
 const API_URL = ""; 
 
@@ -9,37 +10,66 @@ function Dashboard() {
     target: 72, humidity: 0, pressure: 0, gas: 0, iaq: 0,
     mode: "OFF", fan_mode: "AUTO", eco_mode: false,
     active: false, locked_out: false, remote_active: false, read_only: false,
-    run_start: 0, last_duration: 0, last_end: 0
+    run_start: 0, last_duration: 0, last_end: 0, control_pending: false
   });
+  const dataRef = useRef(data);
+  const pendingPayloadRef = useRef(null);
+
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
 
   const fetchStatus = async () => {
     try {
       const res = await fetch(`${API_URL}/status`);
       const json = await res.json();
-      if (!json.error) setData(json);
+      if (json.error) return;
+
+      const pendingPayload = pendingPayloadRef.current;
+      if (pendingPayload && !matchesControlPayload(json, pendingPayload)) {
+        return;
+      }
+
+      if (pendingPayload && !json.control_pending) {
+        pendingPayloadRef.current = null;
+      }
+
+      dataRef.current = json;
+      setData(json);
     } catch (err) { console.error(err); }
   };
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 2000);
+    const interval = setInterval(fetchStatus, 1000);
     return () => { clearInterval(interval); }
   }, []);
 
   const sendControl = async (updates) => {
-    if (data.read_only) return;
-    setData(prev => ({ ...prev, ...updates }));
-    await fetch(`${API_URL}/control`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        mode: updates.mode || data.mode,
-        target: updates.target !== undefined ? updates.target : data.target,
-        fan: updates.fan_mode || data.fan_mode,
-        eco: updates.eco_mode !== undefined ? updates.eco_mode : data.eco_mode
-      })
-    });
-    fetchStatus();
+    if (dataRef.current.read_only) return;
+
+    const { nextData, payload } = buildControlTransaction(dataRef.current, updates);
+    const optimisticData = { ...nextData, control_pending: true };
+
+    pendingPayloadRef.current = payload;
+    dataRef.current = optimisticData;
+    setData(optimisticData);
+
+    try {
+      const res = await fetch(`${API_URL}/control`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        throw new Error(`Control request failed with status ${res.status}`);
+      }
+      fetchStatus();
+    } catch (err) {
+      console.error(err);
+      pendingPayloadRef.current = null;
+      fetchStatus();
+    }
   };
 
   // --- CYCLE TEXT GENERATOR ---
@@ -99,6 +129,7 @@ function Dashboard() {
         <div className="flex flex-col items-end gap-1">
            <div className="flex items-center gap-2">
              {data.locked_out && <span className="text-red-500 font-bold animate-pulse text-xs">⚠ LOCKOUT</span>}
+             {data.control_pending && <span className="text-neonBlue font-bold text-xs">SYNCING</span>}
              <span className={`text-xs font-bold px-3 py-1 rounded-full ${data.active ? 'bg-neonGreen text-black animate-pulse' : 'bg-gray-800 text-gray-500'}`}>
                {data.active ? 'RUNNING' : 'IDLE'}
              </span>
