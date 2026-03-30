@@ -5,8 +5,8 @@ import json
 import os
 import sqlite3
 import threading
-import requests
 from datetime import datetime
+from weather_fetch import WeatherFetchError, fetch_weather_snapshot
 
 # ---------------- CONFIGURATION ----------------
 DB_FILE = "history.db"
@@ -166,16 +166,10 @@ class SmartThermostat:
     def weather_worker(self):
         while True:
             try:
-                url = f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&current=temperature_2m&hourly=temperature_2m&temperature_unit=fahrenheit"
-                r = requests.get(url, timeout=10)
-                if r.status_code == 200:
-                    data = r.json()
-                    self.outside_temp = data["current"]["temperature_2m"]
-                    temps = data.get("hourly", {}).get("temperature_2m", [])
-                    current_hour = datetime.now().hour
-                    if len(temps) > current_hour + 3:
-                        self.forecast_temp = sum(temps[current_hour:current_hour+3]) / 3
-            except Exception as e:
+                snapshot = fetch_weather_snapshot(lat=LAT, lon=LON)
+                self.outside_temp = snapshot["outside_temp"]
+                self.forecast_temp = snapshot["forecast_temp"]
+            except WeatherFetchError as e:
                 print(f"Weather Error: {e}")
             time.sleep(900)
 
