@@ -1,9 +1,33 @@
 import unittest
 
-from auto_reboot import is_auto_reboot_due, should_attempt_idle_reboot
+from auto_reboot import (
+    calculate_booted_at,
+    calculate_next_reboot_due_at,
+    is_auto_reboot_due,
+    should_attempt_idle_reboot,
+)
 
 
 class AutoRebootPolicyTests(unittest.TestCase):
+    def test_calculate_booted_at_subtracts_uptime_from_current_time(self):
+        booted_at = calculate_booted_at(now=1000, uptime_seconds=400)
+
+        self.assertEqual(600, booted_at)
+
+    def test_next_reboot_due_at_uses_boot_time_and_hours(self):
+        settings = {"auto_reboot_enabled": True, "auto_reboot_hours": 24}
+
+        next_due = calculate_next_reboot_due_at(settings, started_at=600)
+
+        self.assertEqual(600 + (24 * 60 * 60), next_due)
+
+    def test_next_reboot_due_at_is_none_when_disabled(self):
+        settings = {"auto_reboot_enabled": False, "auto_reboot_hours": 24}
+
+        next_due = calculate_next_reboot_due_at(settings, started_at=600)
+
+        self.assertIsNone(next_due)
+
     def test_auto_reboot_is_not_due_when_disabled(self):
         settings = {"auto_reboot_enabled": False, "auto_reboot_hours": 24}
 

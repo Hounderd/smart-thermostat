@@ -7,7 +7,12 @@ import sqlite3
 import subprocess
 import threading
 from datetime import datetime
-from auto_reboot import is_auto_reboot_due, should_attempt_idle_reboot
+from auto_reboot import (
+    calculate_next_reboot_due_at,
+    is_auto_reboot_due,
+    read_system_booted_at,
+    should_attempt_idle_reboot,
+)
 from cooling_lockout import (
     handle_active_system_stop,
     load_last_cooling_stop,
@@ -66,7 +71,7 @@ class SmartThermostat:
         self.locked_out = False
         self.remote_active = False
         self.last_ac_time = self.load_lockout()
-        self.started_at = time.time()
+        self.booted_at = read_system_booted_at(now=time.time())
         self.last_reboot_attempt = 0
         self.reboot_pending = False
 
@@ -155,6 +160,7 @@ class SmartThermostat:
     def load_settings(self):
         defaults = {
             "filter_current_hours": 0, "filter_max_hours": 300,
+            "core_deadband": 0.5,
             "eco_hysteresis_mild": 3.0, "eco_hysteresis_strict": 0.5,
             "cost_kwh": 0.14, "cost_therm": 1.10, "ac_kw": 3.5, "furnace_btu": 80000,
             "auto_reboot_enabled": False, "auto_reboot_hours": 24,
@@ -212,6 +218,9 @@ class SmartThermostat:
             deadband = mild_setting
             
         return deadband
+
+    def get_core_deadband(self):
+        return float(self.settings.get("core_deadband", self.HYSTERESIS))
 
     def check_smart_recovery(self):
         now = datetime.now()
@@ -312,13 +321,14 @@ class SmartThermostat:
                 with open(REMOTE_FILE, "r") as f: remote_temp = json.load(f).get("temp")
             except: pass
         
-        current_deadband = self.HYSTERESIS
+        current_deadband = self.get_core_deadband()
         if self.eco_mode: current_deadband = self.calculate_eco_deadband()
 
         data = {
             "mode": self.mode,
             "fan_mode": self.fan_mode,
             "eco_mode": self.eco_mode,
+            "active_call": self.active_call,
             "temp": self.current_temp,
             "local_temp": local_temp,
             "remote_temp": remote_temp,
@@ -338,6 +348,11 @@ class SmartThermostat:
             "filter_max": self.settings.get("filter_max_hours", 300),
             "remote_active": self.remote_active,
             "reboot_pending": self.reboot_pending,
+            "last_reboot_at": self.booted_at,
+            "next_reboot_due_at": calculate_next_reboot_due_at(
+                self.settings,
+                started_at=self.booted_at,
+            ),
             
             # RUNTIME METRICS (NEW)
             "run_start": self.current_run_start,
@@ -408,7 +423,7 @@ class SmartThermostat:
     def update_auto_reboot_state(self, now):
         self.reboot_pending = is_auto_reboot_due(
             self.settings,
-            started_at=self.started_at,
+            started_at=self.booted_at,
             now=now,
         )
 
@@ -441,7 +456,7 @@ class SmartThermostat:
             self.update_filter_hours(elapsed_seconds)
 
         active_target = self.target_temp
-        active_hysteresis = self.HYSTERESIS
+        active_hysteresis = self.get_core_deadband()
         
         if self.eco_mode:
             active_hysteresis = self.calculate_eco_deadband()

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Thermometer, Droplets, Flame, Snowflake, Power, Plus, Minus, Wind, Leaf, Gauge, Activity, Radio, Heart, CloudSun } from 'lucide-react';
 import { buildControlTransaction, matchesControlPayload } from './dashboardState';
-import { DASHBOARD_MODES } from './dashboardModes';
+import { DASHBOARD_MODES, getModeButtonClasses } from './dashboardModes';
 
 const API_URL = ""; 
 
@@ -10,6 +10,7 @@ function Dashboard() {
     temp: 0, local_temp: 0, remote_temp: 0, outside_temp: null,
     target: 72, humidity: 0, pressure: 0, gas: 0, iaq: 0,
     mode: "OFF", fan_mode: "AUTO", eco_mode: false,
+    active_call: null,
     active: false, locked_out: false, remote_active: false, read_only: false,
     run_start: 0, last_duration: 0, last_end: 0, control_pending: false
   });
@@ -212,7 +213,7 @@ function Dashboard() {
            <div className="bg-card rounded-[2rem] p-6 md:p-8 border border-gray-800 shadow-xl">
              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                {DASHBOARD_MODES.map(({ value: m }) => (
-                 <button key={m} onClick={() => sendControl({ mode: m })} className={`p-4 rounded-2xl flex flex-col items-center gap-2 transition-all duration-300 ${data.mode === m ? (m === 'HEAT' ? 'bg-neonOrange text-black shadow-[0_0_20px_rgba(249,115,22,0.4)]' : m === 'COOL' ? 'bg-neonBlue text-black shadow-[0_0_20px_rgba(59,130,246,0.4)]' : m === 'AUTO' ? 'bg-neonGreen text-black shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-white text-black shadow-lg') : 'bg-background hover:bg-white/10 text-gray-400'}`}>
+                 <button key={m} onClick={() => sendControl({ mode: m })} className={`p-4 rounded-2xl flex flex-col items-center gap-2 transition-all duration-300 ${getModeButtonClasses(data, m)}`}>
                    {m === 'HEAT' ? <Flame size={24}/> : m === 'COOL' ? <Snowflake size={24}/> : m === 'AUTO' ? <Activity size={24}/> : <Power size={24}/>} <span className="font-bold text-xs mt-1">{m}</span>
                  </button>
                ))}
