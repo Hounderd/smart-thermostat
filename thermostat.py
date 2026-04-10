@@ -354,7 +354,8 @@ class SmartThermostat:
             conn = sqlite3.connect(DB_FILE, timeout=30)
             c = conn.cursor()
             action = "IDLE"
-            if self.is_active: action = self.mode
+            if self.is_active:
+                action = self.active_call or self.mode
             
             c.execute("INSERT INTO history VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
                      (time.time(), self.current_temp, self.humidity, self.pressure, self.gas, self.target_temp, action, self.outside_temp))
@@ -366,6 +367,31 @@ class SmartThermostat:
     # ---------------- LOGIC LOOP ----------------
     def _relay(self, pin, state):
         GPIO.output(pin, GPIO.HIGH if state else GPIO.LOW)
+
+    def start_call(self, call):
+        if call == "COOL":
+            self._relay(self.PIN_COOL, True)
+        elif call == "HEAT":
+            self._relay(self.PIN_HEAT, True)
+        else:
+            return
+
+        self.is_active = True
+        self.active_call = call
+        self.record_cycle_start()
+
+    def stop_active_call(self):
+        if self.active_call == "COOL":
+            self._relay(self.PIN_COOL, False)
+            self.save_lockout()
+        elif self.active_call == "HEAT":
+            self._relay(self.PIN_HEAT, False)
+        else:
+            return
+
+        self.is_active = False
+        self.record_cycle_end()
+        self.active_call = None
 
     def all_off(self):
         handle_active_system_stop(
@@ -430,7 +456,8 @@ class SmartThermostat:
         self.locked_out = False 
 
         if self.mode == "OFF":
-            if self.is_active: self.all_off()
+            if self.is_active:
+                self.all_off()
 
         elif self.mode == "COOL":
             if (time.time() - self.last_ac_time) < self.CYCLE_DELAY:
@@ -438,33 +465,39 @@ class SmartThermostat:
 
             if self.current_temp > (active_target + active_hysteresis):
                 if not self.is_active and not self.locked_out:
-                    self._relay(self.PIN_COOL, True)
-                    self.is_active = True
-                    self.active_call = "COOL"
-                    self.record_cycle_start() 
+                    self.start_call("COOL")
             
             elif self.current_temp < (active_target - active_hysteresis):
-                if self.is_active:
-                    self._relay(self.PIN_COOL, False)
-                    self.is_active = False
-                    self.record_cycle_end() # <--- Capture Duration
-                    self.save_lockout()
-                    self.active_call = None
+                if self.active_call == "COOL":
+                    self.stop_active_call()
         
         elif self.mode == "HEAT":
             if self.current_temp < (active_target - active_hysteresis):
                 if not self.is_active:
-                    self._relay(self.PIN_HEAT, True)
-                    self.is_active = True
-                    self.active_call = "HEAT"
-                    self.record_cycle_start() 
+                    self.start_call("HEAT")
             
             elif self.current_temp > (active_target + active_hysteresis):
-                if self.is_active:
-                    self._relay(self.PIN_HEAT, False)
-                    self.is_active = False
-                    self.record_cycle_end() # <--- Capture Duration
-                    self.active_call = None
+                if self.active_call == "HEAT":
+                    self.stop_active_call()
+
+        elif self.mode == "AUTO":
+            low_threshold = active_target - active_hysteresis
+            high_threshold = active_target + active_hysteresis
+
+            if self.active_call == "COOL":
+                if self.current_temp < low_threshold:
+                    self.stop_active_call()
+            elif self.active_call == "HEAT":
+                if self.current_temp > high_threshold:
+                    self.stop_active_call()
+            else:
+                if self.current_temp > high_threshold:
+                    if (time.time() - self.last_ac_time) < self.CYCLE_DELAY:
+                        self.locked_out = True
+                    else:
+                        self.start_call("COOL")
+                elif self.current_temp < low_threshold:
+                    self.start_call("HEAT")
 
         fan_should_be_on = False
         if self.fan_mode == "ON": fan_should_be_on = True
