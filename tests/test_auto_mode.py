@@ -1,6 +1,7 @@
 import sys
 import types
 import unittest
+from unittest.mock import mock_open
 from unittest.mock import patch
 
 
@@ -49,6 +50,7 @@ def make_test_thermostat(*, mode, current_temp, target, is_active=False, active_
     thermostat.locked_out = False
     thermostat.remote_active = False
     thermostat.last_ac_time = last_ac_time
+    thermostat.booted_at = 0
     thermostat.started_at = 0
     thermostat.last_reboot_attempt = 0
     thermostat.reboot_pending = False
@@ -179,6 +181,67 @@ class AutoModeTests(unittest.TestCase):
 
         _, params = fake_connection.cursor_instance.executions[-1]
         self.assertEqual("COOL", params[6])
+
+    def test_write_status_includes_active_call_for_auto_mode(self):
+        thermostat, _ = make_test_thermostat(
+            mode="AUTO",
+            current_temp=74.0,
+            target=72.0,
+            is_active=True,
+            active_call="COOL",
+        )
+        thermostat.sensor_adt = None
+        thermostat.sensor_bme = None
+        captured_status = {}
+
+        with patch("thermostat.time.time", return_value=1001), patch(
+            "builtins.open",
+            mock_open(),
+        ), patch("thermostat.json.dump", side_effect=lambda data, _: captured_status.update(data)):
+            SmartThermostat.write_status(thermostat)
+
+        self.assertEqual("COOL", captured_status["active_call"])
+
+    def test_write_status_reports_configured_core_deadband(self):
+        thermostat, _ = make_test_thermostat(
+            mode="AUTO",
+            current_temp=72.0,
+            target=72.0,
+        )
+        thermostat.sensor_adt = None
+        thermostat.sensor_bme = None
+        thermostat.settings["core_deadband"] = 1.25
+        captured_status = {}
+
+        with patch("thermostat.time.time", return_value=1001), patch(
+            "builtins.open",
+            mock_open(),
+        ), patch("thermostat.json.dump", side_effect=lambda data, _: captured_status.update(data)):
+            SmartThermostat.write_status(thermostat)
+
+        self.assertEqual(1.25, captured_status["current_deadband"])
+
+    def test_write_status_includes_restart_schedule_timestamps(self):
+        thermostat, _ = make_test_thermostat(
+            mode="OFF",
+            current_temp=72.0,
+            target=72.0,
+        )
+        thermostat.sensor_adt = None
+        thermostat.sensor_bme = None
+        thermostat.booted_at = 500
+        thermostat.settings["auto_reboot_enabled"] = True
+        thermostat.settings["auto_reboot_hours"] = 24
+        captured_status = {}
+
+        with patch("thermostat.time.time", return_value=1001), patch(
+            "builtins.open",
+            mock_open(),
+        ), patch("thermostat.json.dump", side_effect=lambda data, _: captured_status.update(data)):
+            SmartThermostat.write_status(thermostat)
+
+        self.assertEqual(500, captured_status["last_reboot_at"])
+        self.assertEqual(500 + (24 * 60 * 60), captured_status["next_reboot_due_at"])
 
 
 if __name__ == "__main__":

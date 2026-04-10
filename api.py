@@ -55,6 +55,7 @@ class SystemSettings(BaseModel):
     furnace_btu: float
     filter_current_hours: float
     filter_max_hours: float
+    core_deadband: float
     eco_hysteresis_mild: float
     eco_hysteresis_strict: float
     auto_reboot_enabled: bool
