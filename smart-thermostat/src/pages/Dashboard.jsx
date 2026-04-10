@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Thermometer, Droplets, Flame, Snowflake, Power, Plus, Minus, Wind, Leaf, Gauge, Activity, Radio, Heart, CloudSun } from 'lucide-react';
 import { buildControlTransaction, matchesControlPayload } from './dashboardState';
+import { DASHBOARD_MODES } from './dashboardModes';
 
 const API_URL = ""; 
 
@@ -106,6 +107,7 @@ function Dashboard() {
   const getThemeColor = () => {
     if (data.mode === 'HEAT') return 'text-neonOrange border-neonOrange';
     if (data.mode === 'COOL') return 'text-neonBlue border-neonBlue';
+    if (data.mode === 'AUTO') return 'text-neonGreen border-neonGreen';
     return 'text-gray-500 border-gray-500';
   };
 
@@ -208,10 +210,10 @@ function Dashboard() {
         <div className={`flex flex-col gap-6 transition-opacity duration-300 ${data.read_only ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
            {/* Mode Buttons */}
            <div className="bg-card rounded-[2rem] p-6 md:p-8 border border-gray-800 shadow-xl">
-             <div className="grid grid-cols-3 gap-3 md:gap-4">
-               {['HEAT', 'COOL', 'OFF'].map(m => (
-                 <button key={m} onClick={() => sendControl({ mode: m })} className={`p-4 rounded-2xl flex flex-col items-center gap-2 transition-all duration-300 ${data.mode === m ? (m === 'HEAT' ? 'bg-neonOrange text-black shadow-[0_0_20px_rgba(249,115,22,0.4)]' : m === 'COOL' ? 'bg-neonBlue text-black shadow-[0_0_20px_rgba(59,130,246,0.4)]' : 'bg-white text-black shadow-lg') : 'bg-background hover:bg-white/10 text-gray-400'}`}>
-                   {m === 'HEAT' ? <Flame size={24}/> : m === 'COOL' ? <Snowflake size={24}/> : <Power size={24}/>} <span className="font-bold text-xs mt-1">{m}</span>
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+               {DASHBOARD_MODES.map(({ value: m }) => (
+                 <button key={m} onClick={() => sendControl({ mode: m })} className={`p-4 rounded-2xl flex flex-col items-center gap-2 transition-all duration-300 ${data.mode === m ? (m === 'HEAT' ? 'bg-neonOrange text-black shadow-[0_0_20px_rgba(249,115,22,0.4)]' : m === 'COOL' ? 'bg-neonBlue text-black shadow-[0_0_20px_rgba(59,130,246,0.4)]' : m === 'AUTO' ? 'bg-neonGreen text-black shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 'bg-white text-black shadow-lg') : 'bg-background hover:bg-white/10 text-gray-400'}`}>
+                   {m === 'HEAT' ? <Flame size={24}/> : m === 'COOL' ? <Snowflake size={24}/> : m === 'AUTO' ? <Activity size={24}/> : <Power size={24}/>} <span className="font-bold text-xs mt-1">{m}</span>
                  </button>
                ))}
              </div>
