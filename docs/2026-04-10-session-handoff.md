@@ -15,6 +15,11 @@
   - the `AUTO` mode button changes to heating orange or cooling blue while AUTO is actively driving that call
   - Analytics now lets the user configure the core deadband that replaces the old fixed `0.5`
   - Analytics now shows `Last Pi Restart` and `Next Scheduled Restart`
+- Added configurable `AUTO` changeover delay behavior.
+  - `AUTO` still respects the existing cooling compressor lockout before starting cooling
+  - `AUTO` now also waits a configurable number of minutes before switching directly from `HEAT` to `COOL` or from `COOL` to `HEAT`
+  - Analytics now exposes `AUTO Changeover Delay (Minutes)` with a default of `2`
+  - status now exposes `auto_changeover_pending` and `auto_changeover_until`
 - Set up passwordless SSH from the main Windows machine to the Pi in the prior session and verified it works.
 
 ## Files Changed For AUTO Mode
@@ -28,12 +33,17 @@
 - [smart-thermostat/src/pages/dashboardModes.js](/C:/Users/Hound/Desktop/smart-thermostat/smart-thermostat/src/pages/dashboardModes.js)
 - [smart-thermostat/src/pages/dashboardModes.test.js](/C:/Users/Hound/Desktop/smart-thermostat/smart-thermostat/src/pages/dashboardModes.test.js)
 - [smart-thermostat/src/pages/dashboardState.test.js](/C:/Users/Hound/Desktop/smart-thermostat/smart-thermostat/src/pages/dashboardState.test.js)
+- [tests/test_api_settings.py](/C:/Users/Hound/Desktop/smart-thermostat/tests/test_api_settings.py)
+- [docs/superpowers/specs/2026-04-10-auto-changeover-delay-design.md](/C:/Users/Hound/Desktop/smart-thermostat/docs/superpowers/specs/2026-04-10-auto-changeover-delay-design.md)
+- [docs/superpowers/plans/2026-04-10-auto-changeover-delay.md](/C:/Users/Hound/Desktop/smart-thermostat/docs/superpowers/plans/2026-04-10-auto-changeover-delay.md)
 - [docs/superpowers/specs/2026-04-10-auto-mode-design.md](/C:/Users/Hound/Desktop/smart-thermostat/docs/superpowers/specs/2026-04-10-auto-mode-design.md)
 - [docs/superpowers/plans/2026-04-10-auto-mode.md](/C:/Users/Hound/Desktop/smart-thermostat/docs/superpowers/plans/2026-04-10-auto-mode.md)
 
 ## Behavior Notes
 - Active runtime history now records the actual running call (`HEAT` or `COOL`) instead of the parent `AUTO` mode string.
 - `AUTO` preserves hysteresis behavior by continuing an active heating or cooling cycle until the opposite side of the band is reached.
+- `AUTO` now enforces a separate bidirectional changeover delay before starting the opposite HVAC call.
+- Compressor lockout remains a separate cooling-only safety gate and still applies inside `AUTO`.
 - `current_deadband` in status now reflects the configured core deadband unless eco mode overrides it.
 - Automatic Pi restart scheduling is now anchored to the actual Pi boot time instead of the thermostat process start time.
 - Fan behavior is unchanged:
@@ -42,13 +52,15 @@
 
 ## Verification Run
 - `python -m unittest tests.test_auto_mode tests.test_auto_reboot tests.test_cooling_lockout tests.test_weather_fetch tests.test_api_status tests.test_frontend_paths -v`
+- `python -m unittest tests.test_auto_mode tests.test_api_settings tests.test_auto_reboot tests.test_cooling_lockout tests.test_weather_fetch tests.test_api_status tests.test_frontend_paths -v`
 - `node smart-thermostat/src/pages/dashboardState.test.js`
 - `node smart-thermostat/src/pages/dashboardModes.test.js`
 - `python -m compileall api.py thermostat.py auto_reboot.py cooling_lockout.py weather_fetch.py`
+- `npm install` in `smart-thermostat/` inside the fresh worktree before the build
 - `npm run build` in `smart-thermostat/`
 
 ## Branch / PR Intent
-- Working branch for this session: `feature/auto-mode`
+- Working branch for this session: `feature/auto-changeover-delay`
 - Preferred flow remains:
   1. commit verified changes on the feature branch
   2. push branch
