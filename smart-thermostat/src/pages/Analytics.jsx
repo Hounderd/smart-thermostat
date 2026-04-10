@@ -8,11 +8,18 @@ function Analytics() {
   const [history, setHistory] = useState([]);
   const [status, setStatus] = useState(null);
   const [settings, setSettings] = useState({
-    cost_kwh: 0.14, cost_therm: 1.10, ac_kw: 3.5, furnace_btu: 80000,
-    filter_current_hours: 0, filter_max_hours: 300,
+    cost_kwh: 0.14,
+    cost_therm: 1.10,
+    ac_kw: 3.5,
+    furnace_btu: 80000,
+    filter_current_hours: 0,
+    filter_max_hours: 300,
     core_deadband: 0.5,
-    eco_hysteresis_mild: 3.0, eco_hysteresis_strict: 0.5,
-    auto_reboot_enabled: false, auto_reboot_hours: 24
+    eco_hysteresis_mild: 3.0,
+    eco_hysteresis_strict: 0.5,
+    auto_changeover_delay_minutes: 2,
+    auto_reboot_enabled: false,
+    auto_reboot_hours: 24,
   });
   const [stats, setStats] = useState({ min: 0, max: 0, runtime: 0, avg_humidity: 0 });
   const [estCost, setEstCost] = useState(0);
@@ -23,7 +30,7 @@ function Analytics() {
       if (!data.length) return;
       const formatted = data.map(d => ({
         ...d,
-        timeLabel: new Date(d.time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        timeLabel: new Date(d.time * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }));
       setHistory(formatted);
 
@@ -35,7 +42,7 @@ function Analytics() {
         min: Math.min(...temps),
         max: Math.max(...temps),
         runtime: activeMinutes,
-        avg_humidity: hums.reduce((a, b) => a + b, 0) / hums.length
+        avg_humidity: hums.reduce((a, b) => a + b, 0) / hums.length,
       });
     });
 
@@ -61,7 +68,7 @@ function Analytics() {
     await fetch(`${API_URL}/settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings)
+      body: JSON.stringify(settings),
     });
     setShowSettings(false);
     fetch(`${API_URL}/status`).then(res => res.json()).then(data => setStatus(data));
@@ -148,7 +155,7 @@ function Analytics() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-4">
             <div>
               <label className="text-xs text-gray-400">Core Deadband</label>
               <div className="flex items-center gap-2">
@@ -158,20 +165,28 @@ function Analytics() {
               <p className="text-[10px] text-gray-500">Base hysteresis used for normal heat, cool, and auto mode behavior.</p>
             </div>
             <div>
-              <label className="text-xs text-neonGreen">Mild Weather Deadband (Default 3°)</label>
+              <label className="text-xs text-neonGreen">Mild Weather Deadband (Default 3 deg)</label>
               <div className="flex items-center gap-2">
                 <input type="range" min="1" max="6" step="0.5" value={settings.eco_hysteresis_mild} onChange={e => setSettings({ ...settings, eco_hysteresis_mild: parseFloat(e.target.value) })} className="w-full accent-neonGreen" />
                 <span className="text-white w-8">{settings.eco_hysteresis_mild}</span>
               </div>
-              <p className="text-[10px] text-gray-500">Range allowed when outside is 55-75°F</p>
+              <p className="text-[10px] text-gray-500">Range allowed when outside is 55-75 F</p>
             </div>
             <div>
-              <label className="text-xs text-neonBlue">Strict Weather Deadband (Default 0.5°)</label>
+              <label className="text-xs text-amber-400">AUTO Changeover Delay (Minutes)</label>
+              <div className="flex items-center gap-2">
+                <input type="range" min="0" max="10" step="0.5" value={settings.auto_changeover_delay_minutes} onChange={e => setSettings({ ...settings, auto_changeover_delay_minutes: parseFloat(e.target.value) })} className="w-full accent-amber-400" />
+                <span className="text-white w-10">{settings.auto_changeover_delay_minutes}</span>
+              </div>
+              <p className="text-[10px] text-gray-500">In AUTO mode, waits this long before switching from heating to cooling or cooling to heating.</p>
+            </div>
+            <div>
+              <label className="text-xs text-neonBlue">Strict Weather Deadband (Default 0.5 deg)</label>
               <div className="flex items-center gap-2">
                 <input type="range" min="0.1" max="2" step="0.1" value={settings.eco_hysteresis_strict} onChange={e => setSettings({ ...settings, eco_hysteresis_strict: parseFloat(e.target.value) })} className="w-full accent-neonBlue" />
                 <span className="text-white w-8">{settings.eco_hysteresis_strict}</span>
               </div>
-              <p className="text-[10px] text-gray-500">Range when outside is freezing (&lt;20°F)</p>
+              <p className="text-[10px] text-gray-500">Range when outside is freezing (&lt;20 F)</p>
             </div>
           </div>
 
@@ -251,7 +266,7 @@ function Analytics() {
         </div>
         <div className="bg-card border border-gray-800 rounded-2xl p-4 flex flex-col gap-1">
           <div className="flex items-center gap-2 text-gray-500 text-xs uppercase font-bold"><Home size={14} className="text-purple-500" /> Heat Loss</div>
-          <span className="text-3xl font-bold text-white">{status ? status.heat_loss.toFixed(1) : '--'} <span className="text-xs text-gray-500">°/hr</span></span>
+          <span className="text-3xl font-bold text-white">{status ? status.heat_loss.toFixed(1) : '--'} <span className="text-xs text-gray-500">deg/hr</span></span>
         </div>
       </div>
 
@@ -298,7 +313,7 @@ function Analytics() {
               <XAxis dataKey="timeLabel" hide />
               <YAxis stroke="#666" domain={[0, 500]} />
               <Tooltip content={<CustomTooltip />} />
-              <Line type="monotone" dataKey="gas" stroke="#22c55e" strokeWidth={2} dot={false} name="Raw Gas (kΩ)" />
+              <Line type="monotone" dataKey="gas" stroke="#22c55e" strokeWidth={2} dot={false} name="Raw Gas (kOhm)" />
             </LineChart>
           </ResponsiveContainer>
         </div>

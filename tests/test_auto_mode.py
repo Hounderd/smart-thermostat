@@ -29,7 +29,17 @@ sys.modules.setdefault("board", board_module)
 from thermostat import SmartThermostat
 
 
-def make_test_thermostat(*, mode, current_temp, target, is_active=False, active_call=None, last_ac_time=0):
+def make_test_thermostat(
+    *,
+    mode,
+    current_temp,
+    target,
+    is_active=False,
+    active_call=None,
+    last_ac_time=0,
+    last_stopped_call=None,
+    last_call_stopped_at=0,
+):
     thermostat = SmartThermostat.__new__(SmartThermostat)
     thermostat.PIN_FAN = 4
     thermostat.PIN_COOL = 22
@@ -50,6 +60,10 @@ def make_test_thermostat(*, mode, current_temp, target, is_active=False, active_
     thermostat.locked_out = False
     thermostat.remote_active = False
     thermostat.last_ac_time = last_ac_time
+    thermostat.last_stopped_call = last_stopped_call
+    thermostat.last_call_stopped_at = last_call_stopped_at
+    thermostat.auto_changeover_pending = False
+    thermostat.auto_changeover_until = None
     thermostat.booted_at = 0
     thermostat.started_at = 0
     thermostat.last_reboot_attempt = 0
@@ -67,6 +81,7 @@ def make_test_thermostat(*, mode, current_temp, target, is_active=False, active_
         "filter_max_hours": 300,
         "eco_hysteresis_mild": 3.0,
         "eco_hysteresis_strict": 0.5,
+        "auto_changeover_delay_minutes": 2,
         "auto_reboot_enabled": False,
         "auto_reboot_hours": 24,
     }
@@ -166,6 +181,61 @@ class AutoModeTests(unittest.TestCase):
         self.assertIsNone(thermostat.active_call)
         self.assertNotIn((thermostat.PIN_COOL, True), relay_calls)
 
+    def test_auto_mode_blocks_heat_to_cool_until_changeover_delay_expires(self):
+        thermostat, relay_calls = make_test_thermostat(
+            mode="AUTO",
+            current_temp=74.0,
+            target=72.0,
+            last_stopped_call="HEAT",
+            last_call_stopped_at=1000,
+        )
+
+        with patch("thermostat.time.time", return_value=1060):
+            SmartThermostat.logic_loop(thermostat, elapsed_seconds=1)
+
+        self.assertFalse(thermostat.is_active)
+        self.assertIsNone(thermostat.active_call)
+        self.assertTrue(thermostat.auto_changeover_pending)
+        self.assertEqual(1120, thermostat.auto_changeover_until)
+        self.assertNotIn((thermostat.PIN_COOL, True), relay_calls)
+
+    def test_auto_mode_blocks_cool_to_heat_until_changeover_delay_expires(self):
+        thermostat, relay_calls = make_test_thermostat(
+            mode="AUTO",
+            current_temp=70.0,
+            target=72.0,
+            last_stopped_call="COOL",
+            last_call_stopped_at=1000,
+        )
+
+        with patch("thermostat.time.time", return_value=1060):
+            SmartThermostat.logic_loop(thermostat, elapsed_seconds=1)
+
+        self.assertFalse(thermostat.is_active)
+        self.assertIsNone(thermostat.active_call)
+        self.assertTrue(thermostat.auto_changeover_pending)
+        self.assertEqual(1120, thermostat.auto_changeover_until)
+        self.assertNotIn((thermostat.PIN_HEAT, True), relay_calls)
+
+    def test_auto_mode_starts_opposite_call_after_changeover_delay_expires(self):
+        thermostat, relay_calls = make_test_thermostat(
+            mode="AUTO",
+            current_temp=74.0,
+            target=72.0,
+            last_stopped_call="HEAT",
+            last_call_stopped_at=1000,
+            last_ac_time=0,
+        )
+
+        with patch("thermostat.time.time", return_value=1121):
+            SmartThermostat.logic_loop(thermostat, elapsed_seconds=1)
+
+        self.assertTrue(thermostat.is_active)
+        self.assertEqual("COOL", thermostat.active_call)
+        self.assertFalse(thermostat.auto_changeover_pending)
+        self.assertIsNone(thermostat.auto_changeover_until)
+        self.assertIn((thermostat.PIN_COOL, True), relay_calls)
+
     def test_history_records_active_call_when_auto_is_running(self):
         thermostat, _ = make_test_thermostat(
             mode="AUTO",
@@ -242,6 +312,27 @@ class AutoModeTests(unittest.TestCase):
 
         self.assertEqual(500, captured_status["last_reboot_at"])
         self.assertEqual(500 + (24 * 60 * 60), captured_status["next_reboot_due_at"])
+
+    def test_write_status_includes_auto_changeover_delay_state(self):
+        thermostat, _ = make_test_thermostat(
+            mode="AUTO",
+            current_temp=72.0,
+            target=72.0,
+        )
+        thermostat.sensor_adt = None
+        thermostat.sensor_bme = None
+        thermostat.auto_changeover_pending = True
+        thermostat.auto_changeover_until = 1120
+        captured_status = {}
+
+        with patch("thermostat.time.time", return_value=1001), patch(
+            "builtins.open",
+            mock_open(),
+        ), patch("thermostat.json.dump", side_effect=lambda data, _: captured_status.update(data)):
+            SmartThermostat.write_status(thermostat)
+
+        self.assertTrue(captured_status["auto_changeover_pending"])
+        self.assertEqual(1120, captured_status["auto_changeover_until"])
 
 
 if __name__ == "__main__":
