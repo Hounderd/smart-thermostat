@@ -71,6 +71,10 @@ class SmartThermostat:
         self.locked_out = False
         self.auto_changeover_pending = False
         self.auto_changeover_until = None
+        self.auto_heat_wait_pending = False
+        self.auto_heat_wait_until = None
+        self.auto_heat_wait_started_at = None
+        self.auto_heat_wait_start_temp = None
         self.remote_active = False
         self.last_ac_time = self.load_lockout()
         self.last_stopped_call = None
@@ -171,6 +175,9 @@ class SmartThermostat:
             "auto_fan_cool_enabled": True, "auto_fan_cool_max_outside_temp": 50.0,
             "auto_fan_cool_fallback_minutes": 10.0, "auto_fan_cool_min_drop": 0.5,
             "auto_changeover_delay_minutes": 2,
+            "auto_heat_wait_max_outside_temp": 50.0,
+            "auto_heat_wait_minutes": 15.0,
+            "auto_heat_wait_min_rise": 0.5,
             "cost_kwh": 0.14, "cost_therm": 1.10, "ac_kw": 3.5, "furnace_btu": 80000,
             "auto_reboot_enabled": False, "auto_reboot_hours": 24,
         }
@@ -258,6 +265,48 @@ class SmartThermostat:
 
     def get_auto_fan_cool_min_drop(self):
         return max(0.0, float(self.settings.get("auto_fan_cool_min_drop", 0.5)))
+
+    def get_auto_heat_wait_seconds(self):
+        minutes = float(self.settings.get("auto_heat_wait_minutes", 15.0))
+        return max(0.0, minutes * 60)
+
+    def get_auto_heat_wait_min_rise(self):
+        return max(0.0, float(self.settings.get("auto_heat_wait_min_rise", 0.5)))
+
+    def should_wait_for_auto_heat(self):
+        if self.get_auto_heat_wait_seconds() <= 0:
+            return False
+        if self.outside_temp is None:
+            return False
+        threshold = float(self.settings.get("auto_heat_wait_max_outside_temp", 50.0))
+        return self.outside_temp > threshold
+
+    def clear_auto_heat_wait(self):
+        self.auto_heat_wait_pending = False
+        self.auto_heat_wait_until = None
+        self.auto_heat_wait_started_at = None
+        self.auto_heat_wait_start_temp = None
+
+    def start_auto_heat_wait(self, now):
+        self.auto_heat_wait_pending = True
+        self.auto_heat_wait_started_at = now
+        self.auto_heat_wait_start_temp = self.current_temp
+        self.auto_heat_wait_until = now + self.get_auto_heat_wait_seconds()
+
+    def should_continue_waiting_for_auto_heat(self, now):
+        if not self.auto_heat_wait_pending:
+            return False
+
+        if self.auto_heat_wait_until is None or now < self.auto_heat_wait_until:
+            return True
+
+        temp_rise = self.current_temp - self.auto_heat_wait_start_temp
+        if temp_rise >= self.get_auto_heat_wait_min_rise():
+            self.start_auto_heat_wait(now)
+            return True
+
+        self.clear_auto_heat_wait()
+        return False
 
     def begin_fan_cool_attempt(self, started_at=None):
         self.fan_cool_started_at = time.time() if started_at is None else started_at
@@ -429,6 +478,8 @@ class SmartThermostat:
             "locked_out": self.locked_out,
             "auto_changeover_pending": self.auto_changeover_pending,
             "auto_changeover_until": self.auto_changeover_until,
+            "auto_heat_wait_pending": self.auto_heat_wait_pending,
+            "auto_heat_wait_until": self.auto_heat_wait_until,
             "short_cycle": self.short_cycle_alert,
             "current_deadband": current_deadband,
             "filter_hours": self.settings.get("filter_current_hours", 0),
@@ -482,6 +533,7 @@ class SmartThermostat:
         else:
             return
 
+        self.clear_auto_heat_wait()
         self.is_active = True
         self.active_call = call
         self.record_cycle_start()
@@ -501,6 +553,7 @@ class SmartThermostat:
         self.is_active = False
         self.record_cycle_end()
         self.active_call = None
+        self.clear_auto_heat_wait()
         self.clear_fan_cool_attempt()
         self.remember_stopped_call(stopped_call)
 
@@ -516,6 +569,7 @@ class SmartThermostat:
         self._relay(self.PIN_HEAT, False)
         self.is_active = False
         self.active_call = None
+        self.clear_auto_heat_wait()
         self.clear_fan_cool_attempt()
         self.remember_stopped_call(stopped_call)
 
@@ -546,8 +600,8 @@ class SmartThermostat:
 
         raise SystemExit("Auto reboot requested")
 
-    def logic_loop(self, elapsed_seconds):
-        now = time.time()
+    def logic_loop(self, elapsed_seconds, now=None):
+        now = time.time() if now is None else now
         self.load_control()
         self.get_readings()
         self.update_heat_loss_rate()
@@ -575,8 +629,11 @@ class SmartThermostat:
         if self.mode == "OFF":
             if self.is_active:
                 self.all_off()
+            else:
+                self.clear_auto_heat_wait()
 
         elif self.mode == "COOL":
+            self.clear_auto_heat_wait()
             if (now - self.last_ac_time) < self.CYCLE_DELAY:
                 self.locked_out = True
 
@@ -591,6 +648,7 @@ class SmartThermostat:
                     self.stop_active_call()
         
         elif self.mode == "HEAT":
+            self.clear_auto_heat_wait()
             if self.current_temp < (active_target - active_hysteresis):
                 if not self.is_active:
                     self.start_call("HEAT")
@@ -604,6 +662,7 @@ class SmartThermostat:
             high_threshold = active_target + active_hysteresis
 
             if self.is_cooling_call(self.active_call):
+                self.clear_auto_heat_wait()
                 if self.current_temp < low_threshold:
                     self.stop_active_call()
                 elif self.active_call == "FAN_COOL" and self.should_fall_back_to_compressor_cool(now):
@@ -617,6 +676,7 @@ class SmartThermostat:
                     self.stop_active_call()
             else:
                 if self.current_temp > high_threshold:
+                    self.clear_auto_heat_wait()
                     requested_cooling_call = "FAN_COOL" if self.should_use_auto_fan_cool() else "COOL"
                     changeover_deadline = self.get_auto_changeover_deadline(requested_cooling_call)
                     if changeover_deadline and now < changeover_deadline:
@@ -629,10 +689,21 @@ class SmartThermostat:
                 elif self.current_temp < low_threshold:
                     changeover_deadline = self.get_auto_changeover_deadline("HEAT")
                     if changeover_deadline and now < changeover_deadline:
+                        self.clear_auto_heat_wait()
                         self.auto_changeover_pending = True
                         self.auto_changeover_until = changeover_deadline
+                    elif self.should_wait_for_auto_heat():
+                        if not self.auto_heat_wait_pending:
+                            self.start_auto_heat_wait(now)
+                        elif not self.should_continue_waiting_for_auto_heat(now):
+                            self.start_call("HEAT")
                     else:
+                        self.clear_auto_heat_wait()
                         self.start_call("HEAT")
+                else:
+                    self.clear_auto_heat_wait()
+        else:
+            self.clear_auto_heat_wait()
 
         fan_should_be_on = False
         if self.fan_mode == "ON": fan_should_be_on = True

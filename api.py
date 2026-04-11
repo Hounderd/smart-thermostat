@@ -63,6 +63,9 @@ class SystemSettings(BaseModel):
     auto_fan_cool_fallback_minutes: float
     auto_fan_cool_min_drop: float
     auto_changeover_delay_minutes: float
+    auto_heat_wait_max_outside_temp: float
+    auto_heat_wait_minutes: float
+    auto_heat_wait_min_rise: float
     auto_reboot_enabled: bool
     auto_reboot_hours: float
 
@@ -120,7 +123,7 @@ def get_settings():
 @app.post("/settings")
 def update_settings(s: SystemSettings):
     with open(SETTINGS_FILE, "w") as f:
-        json.dump(s.dict(), f)
+        json.dump(s.model_dump(), f)
     return {"status": "saved"}
 
 @app.post("/remote")
