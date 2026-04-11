@@ -25,6 +25,9 @@
   - `FAN_COOL` is enabled/configured from Analytics with `AUTO Fan Cooling` and an outdoor threshold
   - `FAN_COOL` uses the fan relay only and does not use the compressor cooling relay
   - the `AUTO` button and main room-temperature card now both reflect the concrete active state, including white for `FAN_COOL`
+- Tightened runtime analytics and dashboard cycle text behavior.
+  - Analytics now excludes `FAN_COOL` from paid HVAC runtime and cost summaries while preserving raw history
+  - the small dashboard cycle-status line now names the concrete active or last active call, including `HEATING`, `COOLING`, and `FAN COOLING`
 - Cleaned up the Analytics configuration layout.
   - reorganized Configuration into `Cost & Equipment`, `Thermostat Behavior`, and `Maintenance & Restart`
   - converted the dense mixed control row into stacked settings rows/cards
@@ -59,9 +62,11 @@
 - `AUTO` can now choose `FAN_COOL` when outdoor temperature is below the configured threshold.
 - Compressor lockout remains a separate cooling-only safety gate and still applies inside `AUTO`.
 - `FAN_COOL` bypasses the compressor lockout because it does not use the compressor relay.
+- `FAN_COOL` remains visible in raw history/status but is excluded from paid HVAC runtime analytics.
 - `current_deadband` in status now reflects the configured core deadband unless eco mode overrides it.
 - The Analytics settings panel is now organized as a clean form with grouped sections instead of a dense mixed grid.
 - Automatic Pi restart scheduling is now anchored to the actual Pi boot time instead of the thermostat process start time.
+- Status now exposes `last_active_call` so the dashboard can describe the most recent concrete HVAC action while idle.
 - Fan behavior is unchanged:
   - `fan_mode == "ON"` always energizes the fan relay
   - `fan_mode == "AUTO"` follows normal cooling behavior and optional heat-fan behavior

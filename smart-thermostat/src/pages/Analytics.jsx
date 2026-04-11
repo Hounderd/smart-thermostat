@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AreaChart, Area, LineChart, Line, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { Timer, Activity, Home, DollarSign, Settings, Save, RotateCcw } from 'lucide-react';
+import { getBillableActionMinutes, getBillableRuntimeMinutes } from './analyticsMetrics';
 
 const API_URL = "";
 
@@ -37,7 +38,7 @@ function Analytics() {
       setHistory(formatted);
 
       const temps = data.map(d => d.temp);
-      const activeMinutes = data.filter(d => d.action && d.action !== 'IDLE').length;
+      const activeMinutes = getBillableRuntimeMinutes(data);
       const hums = data.map(d => d.humidity);
 
       setStats({
@@ -59,8 +60,8 @@ function Analytics() {
 
   useEffect(() => {
     if (!status || !stats.runtime) return;
-    const coolMins = history.filter(d => d.action === 'COOL').length;
-    const heatMins = history.filter(d => d.action === 'HEAT').length;
+    const coolMins = getBillableActionMinutes(history, 'COOL');
+    const heatMins = getBillableActionMinutes(history, 'HEAT');
     const coolCost = (coolMins / 60) * settings.ac_kw * settings.cost_kwh;
     const heatCost = (heatMins / 60) * (settings.furnace_btu / 100000) * settings.cost_therm;
     setEstCost(coolCost + heatCost);
