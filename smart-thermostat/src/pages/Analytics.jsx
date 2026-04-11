@@ -20,6 +20,8 @@ function Analytics() {
     eco_hysteresis_strict: 0.5,
     auto_fan_cool_enabled: true,
     auto_fan_cool_max_outside_temp: 50,
+    auto_fan_cool_fallback_minutes: 10,
+    auto_fan_cool_min_drop: 0.5,
     auto_changeover_delay_minutes: 2,
     auto_reboot_enabled: false,
     auto_reboot_hours: 24,
@@ -321,6 +323,30 @@ function Analytics() {
                   <p className={settingCopyClass}>Below this outside temperature, AUTO cooling can switch to `FAN_COOL` instead of compressor cooling.</p>
                 </div>
               </div>
+
+              <SliderRow
+                title="AUTO Fan Cool Fallback Delay"
+                description="How long AUTO lets fan cooling run before checking whether it has cooled the room enough to avoid compressor cooling."
+                value={settings.auto_fan_cool_fallback_minutes}
+                min="1"
+                max="60"
+                step="1"
+                accentClass="accent-white"
+                valueWidth="w-14"
+                onChange={e => updateSetting('auto_fan_cool_fallback_minutes', parseFloat(e.target.value))}
+              />
+
+              <SliderRow
+                title="AUTO Fan Cool Minimum Drop"
+                description="Minimum temperature drop required during the fallback delay. If fan cooling drops less than this, AUTO switches to compressor cooling."
+                value={settings.auto_fan_cool_min_drop}
+                min="0.1"
+                max="3"
+                step="0.1"
+                accentClass="accent-white"
+                valueWidth="w-14"
+                onChange={e => updateSetting('auto_fan_cool_min_drop', parseFloat(e.target.value))}
+              />
             </div>
           </SectionShell>
 

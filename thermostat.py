@@ -75,6 +75,8 @@ class SmartThermostat:
         self.last_ac_time = self.load_lockout()
         self.last_stopped_call = None
         self.last_call_stopped_at = 0
+        self.fan_cool_started_at = 0
+        self.fan_cool_start_temp = None
         self.booted_at = read_system_booted_at(now=time.time())
         self.last_reboot_attempt = 0
         self.reboot_pending = False
@@ -167,6 +169,7 @@ class SmartThermostat:
             "core_deadband": 0.5,
             "eco_hysteresis_mild": 3.0, "eco_hysteresis_strict": 0.5,
             "auto_fan_cool_enabled": True, "auto_fan_cool_max_outside_temp": 50.0,
+            "auto_fan_cool_fallback_minutes": 10.0, "auto_fan_cool_min_drop": 0.5,
             "auto_changeover_delay_minutes": 2,
             "cost_kwh": 0.14, "cost_therm": 1.10, "ac_kw": 3.5, "furnace_btu": 80000,
             "auto_reboot_enabled": False, "auto_reboot_hours": 24,
@@ -248,6 +251,39 @@ class SmartThermostat:
     def get_auto_changeover_delay_seconds(self):
         minutes = float(self.settings.get("auto_changeover_delay_minutes", 2))
         return max(0.0, minutes * 60)
+
+    def get_auto_fan_cool_fallback_seconds(self):
+        minutes = float(self.settings.get("auto_fan_cool_fallback_minutes", 10))
+        return max(0.0, minutes * 60)
+
+    def get_auto_fan_cool_min_drop(self):
+        return max(0.0, float(self.settings.get("auto_fan_cool_min_drop", 0.5)))
+
+    def begin_fan_cool_attempt(self, started_at=None):
+        self.fan_cool_started_at = time.time() if started_at is None else started_at
+        self.fan_cool_start_temp = self.current_temp
+
+    def clear_fan_cool_attempt(self):
+        self.fan_cool_started_at = 0
+        self.fan_cool_start_temp = None
+
+    def should_fall_back_to_compressor_cool(self, now):
+        if self.active_call != "FAN_COOL" or not self.is_active:
+            return False
+
+        fallback_seconds = self.get_auto_fan_cool_fallback_seconds()
+        if fallback_seconds <= 0:
+            return True
+
+        if self.fan_cool_started_at <= 0 or self.fan_cool_start_temp is None:
+            self.begin_fan_cool_attempt(started_at=now)
+            return False
+
+        if (now - self.fan_cool_started_at) < fallback_seconds:
+            return False
+
+        temp_drop = self.fan_cool_start_temp - self.current_temp
+        return temp_drop < self.get_auto_fan_cool_min_drop()
 
     def remember_stopped_call(self, call, stopped_at=None):
         if call not in ("HEAT", "COOL", "FAN_COOL"):
@@ -438,10 +474,12 @@ class SmartThermostat:
     def start_call(self, call):
         if call == "COOL":
             self._relay(self.PIN_COOL, True)
+            self.clear_fan_cool_attempt()
         elif call == "HEAT":
             self._relay(self.PIN_HEAT, True)
+            self.clear_fan_cool_attempt()
         elif call == "FAN_COOL":
-            pass
+            self.begin_fan_cool_attempt()
         else:
             return
 
@@ -464,6 +502,7 @@ class SmartThermostat:
         self.is_active = False
         self.record_cycle_end()
         self.active_call = None
+        self.clear_fan_cool_attempt()
         self.remember_stopped_call(stopped_call)
 
     def all_off(self):
@@ -478,6 +517,7 @@ class SmartThermostat:
         self._relay(self.PIN_HEAT, False)
         self.is_active = False
         self.active_call = None
+        self.clear_fan_cool_attempt()
         self.remember_stopped_call(stopped_call)
 
     def update_auto_reboot_state(self, now):
@@ -542,6 +582,8 @@ class SmartThermostat:
                 self.locked_out = True
 
             if self.current_temp > (active_target + active_hysteresis):
+                if self.active_call == "FAN_COOL":
+                    self.stop_active_call()
                 if not self.is_active and not self.locked_out:
                     self.start_call("COOL")
             
@@ -565,6 +607,12 @@ class SmartThermostat:
             if self.is_cooling_call(self.active_call):
                 if self.current_temp < low_threshold:
                     self.stop_active_call()
+                elif self.active_call == "FAN_COOL" and self.should_fall_back_to_compressor_cool(now):
+                    if (now - self.last_ac_time) < self.CYCLE_DELAY:
+                        self.locked_out = True
+                    else:
+                        self.stop_active_call()
+                        self.start_call("COOL")
             elif self.active_call == "HEAT":
                 if self.current_temp > high_threshold:
                     self.stop_active_call()
