@@ -351,14 +351,13 @@ class SmartThermostat:
         if self.humidity >= 38 and self.humidity <= 42: hum_score = 25
         else:
             if self.humidity < 38: hum_score = 25 - ((38 - self.humidity) * 0.25)
-            else: hum_score = 25 + ((self.humidity - 42) * 0.25)
+            else: hum_score = 25 - ((self.humidity - 42) * 0.25)
+        hum_score = max(0, min(25, hum_score))
         
-        gas_score = 0
         gas_ref = 250000 
         gas_limit = 50000 
-        if self.gas > gas_ref: self.gas = gas_ref
-        if self.gas < gas_limit: self.gas = gas_limit
-        gas_score = (0.75 / (gas_ref - gas_limit) * self.gas) * 100
+        gas_reading = max(gas_limit, min(gas_ref, self.gas))
+        gas_score = ((gas_reading - gas_limit) / (gas_ref - gas_limit)) * 75
         raw_iaq = (100 - (hum_score + gas_score)) * 5
         self.iaq_score = round(max(0, min(500, raw_iaq)))
 
