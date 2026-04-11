@@ -335,6 +335,25 @@ class AutoModeTests(unittest.TestCase):
 
         self.assertEqual("FAN_COOL", captured_status["active_call"])
 
+    def test_write_status_includes_last_stopped_call(self):
+        thermostat, _ = make_test_thermostat(
+            mode="AUTO",
+            current_temp=72.0,
+            target=72.0,
+            last_stopped_call="COOL",
+        )
+        thermostat.sensor_adt = None
+        thermostat.sensor_bme = None
+        captured_status = {}
+
+        with patch("thermostat.time.time", return_value=1001), patch(
+            "builtins.open",
+            mock_open(),
+        ), patch("thermostat.json.dump", side_effect=lambda data, _: captured_status.update(data)):
+            SmartThermostat.write_status(thermostat)
+
+        self.assertEqual("COOL", captured_status["last_active_call"])
+
     def test_write_status_reports_configured_core_deadband(self):
         thermostat, _ = make_test_thermostat(
             mode="AUTO",

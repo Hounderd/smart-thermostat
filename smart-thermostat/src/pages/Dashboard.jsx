@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Thermometer, Droplets, Flame, Snowflake, Power, Plus, Minus, Wind, Leaf, Gauge, Activity, Radio, Heart, CloudSun } from 'lucide-react';
 import { buildControlTransaction, matchesControlPayload } from './dashboardState';
 import { DASHBOARD_MODES, getDashboardAccentClasses, getModeButtonClasses } from './dashboardModes';
+import { getCycleText } from './dashboardCycleText';
 
 const API_URL = ""; 
 
@@ -11,6 +12,7 @@ function Dashboard() {
     target: 72, humidity: 0, pressure: 0, gas: 0, iaq: 0,
     mode: "OFF", fan_mode: "AUTO", eco_mode: false,
     active_call: null,
+    last_active_call: null,
     active: false, locked_out: false, remote_active: false, read_only: false,
     run_start: 0, last_duration: 0, last_end: 0, control_pending: false
   });
@@ -74,24 +76,6 @@ function Dashboard() {
     }
   };
 
-  // --- CYCLE TEXT GENERATOR ---
-  const getCycleText = () => {
-    const now = Date.now() / 1000;
-    
-    if (data.active && data.run_start > 0) {
-      const duration = Math.floor((now - data.run_start) / 60);
-      return `Running for ${Math.max(0, duration)}m`;
-    }
-    
-    if (!data.active && data.last_duration > 0) {
-      const duration = Math.floor(data.last_duration / 60);
-      const ago = Math.floor((now - data.last_end) / 60);
-      return `Ran ${Math.max(1, duration)}m • ${Math.max(0, ago)}m ago`;
-    }
-    
-    return null;
-  };
-
   const getIaqColor = (score) => {
     if (score <= 50) return 'text-neonGreen'; 
     if (score <= 150) return 'text-yellow-500';
@@ -105,7 +89,15 @@ function Dashboard() {
     return 'POOR';
   };
 
-  const cycleText = getCycleText();
+  const cycleText = getCycleText({
+    now: Date.now() / 1000,
+    active: data.active,
+    active_call: data.active_call,
+    run_start: data.run_start,
+    last_duration: data.last_duration,
+    last_end: data.last_end,
+    last_active_call: data.last_active_call,
+  });
 
   return (
     <div className="p-4 md:p-8 flex flex-col items-center justify-center min-h-full">

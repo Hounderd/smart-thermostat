@@ -378,6 +378,7 @@ class SmartThermostat:
             "fan_mode": self.fan_mode,
             "eco_mode": self.eco_mode,
             "active_call": self.active_call,
+            "last_active_call": self.last_stopped_call,
             "temp": self.current_temp,
             "local_temp": local_temp,
             "remote_temp": remote_temp,
