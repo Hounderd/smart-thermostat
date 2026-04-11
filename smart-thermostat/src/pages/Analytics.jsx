@@ -23,6 +23,9 @@ function Analytics() {
     auto_fan_cool_fallback_minutes: 10,
     auto_fan_cool_min_drop: 0.5,
     auto_changeover_delay_minutes: 2,
+    auto_heat_wait_max_outside_temp: 50,
+    auto_heat_wait_minutes: 15,
+    auto_heat_wait_min_rise: 0.5,
     auto_reboot_enabled: false,
     auto_reboot_hours: 24,
   });
@@ -238,14 +241,14 @@ function Analytics() {
 
           <SectionShell
             title="Thermostat Behavior"
-            description="Comfort tuning for hysteresis, AUTO transitions, and low-outdoor-temperature fan cooling."
+            description="Comfort tuning for hysteresis, AUTO transitions, passive warming, and low-outdoor-temperature fan cooling."
           >
             <div className="grid gap-4">
               <SliderRow
                 title="Core Deadband"
                 description="Base hysteresis used for normal heating, cooling, and AUTO mode behavior."
                 value={settings.core_deadband}
-                min="0.1"
+                min="0"
                 max="3"
                 step="0.1"
                 accentClass="accent-white"
@@ -256,7 +259,7 @@ function Analytics() {
                 title="Mild Weather Deadband"
                 description="Expanded deadband used during eco mode when outside temperature is between 55 F and 75 F."
                 value={settings.eco_hysteresis_mild}
-                min="1"
+                min="0"
                 max="6"
                 step="0.5"
                 accentClass="accent-neonGreen"
@@ -267,7 +270,7 @@ function Analytics() {
                 title="Strict Weather Deadband"
                 description="Tighter eco-mode deadband used when outdoor temperature is below 20 F."
                 value={settings.eco_hysteresis_strict}
-                min="0.1"
+                min="0"
                 max="2"
                 step="0.1"
                 accentClass="accent-neonBlue"
@@ -283,6 +286,42 @@ function Analytics() {
                 step="0.5"
                 accentClass="accent-amber-400"
                 onChange={e => updateSetting('auto_changeover_delay_minutes', parseFloat(e.target.value))}
+              />
+
+              <SliderRow
+                title="AUTO Heat Wait Outdoor Threshold"
+                description="Above this outdoor temperature, AUTO waits for passive warming before starting heat."
+                value={settings.auto_heat_wait_max_outside_temp}
+                min="0"
+                max="80"
+                step="1"
+                accentClass="accent-orange-300"
+                valueWidth="w-16"
+                onChange={e => updateSetting('auto_heat_wait_max_outside_temp', parseFloat(e.target.value))}
+              />
+
+              <SliderRow
+                title="AUTO Heat Wait Delay"
+                description="How long AUTO observes for natural warming before deciding whether to start heat."
+                value={settings.auto_heat_wait_minutes}
+                min="0"
+                max="60"
+                step="1"
+                accentClass="accent-orange-300"
+                valueWidth="w-14"
+                onChange={e => updateSetting('auto_heat_wait_minutes', parseFloat(e.target.value))}
+              />
+
+              <SliderRow
+                title="AUTO Heat Wait Minimum Rise"
+                description="Minimum indoor temperature rise required during the observation window to keep waiting."
+                value={settings.auto_heat_wait_min_rise}
+                min="0"
+                max="3"
+                step="0.1"
+                accentClass="accent-orange-300"
+                valueWidth="w-14"
+                onChange={e => updateSetting('auto_heat_wait_min_rise', parseFloat(e.target.value))}
               />
 
               <div className="rounded-2xl border border-gray-800 bg-card/60 p-4 md:p-5">
