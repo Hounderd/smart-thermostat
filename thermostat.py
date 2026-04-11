@@ -637,8 +637,7 @@ class SmartThermostat:
 
         fan_should_be_on = False
         if self.fan_mode == "ON": fan_should_be_on = True
-        elif self.is_cooling_call(self.active_call) and self.is_active: fan_should_be_on = True
-        elif self.mode == "HEAT" and self.is_active and self.FAN_ON_HEAT: fan_should_be_on = True
+        elif self.active_call == "FAN_COOL" and self.is_active: fan_should_be_on = True
 
         self._relay(self.PIN_FAN, fan_should_be_on)
         self.update_auto_reboot_state(time.time())
