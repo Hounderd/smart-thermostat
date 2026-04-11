@@ -4,17 +4,27 @@ import { buildControlTransaction, matchesControlPayload } from './dashboardState
 import { DASHBOARD_MODES, getDashboardAccentClasses, getModeButtonClasses } from './dashboardModes';
 import { getCycleText } from './dashboardCycleText';
 
-const API_URL = ""; 
+const API_URL = '';
+const DEGREE = '\u00B0';
+const LOCKOUT_LABEL = 'LOCKOUT';
 
 function Dashboard() {
   const [data, setData] = useState({
     temp: 0, local_temp: 0, remote_temp: 0, outside_temp: null,
     target: 72, humidity: 0, pressure: 0, gas: 0, iaq: 0,
-    mode: "OFF", fan_mode: "AUTO", eco_mode: false,
+    mode: 'OFF', fan_mode: 'AUTO', eco_mode: false,
     active_call: null,
     last_active_call: null,
-    active: false, locked_out: false, auto_heat_wait_pending: false, auto_heat_wait_until: null, remote_active: false, read_only: false,
-    run_start: 0, last_duration: 0, last_end: 0, control_pending: false
+    active: false,
+    locked_out: false,
+    auto_heat_wait_pending: false,
+    auto_heat_wait_until: null,
+    remote_active: false,
+    read_only: false,
+    run_start: 0,
+    last_duration: 0,
+    last_end: 0,
+    control_pending: false,
   });
   const dataRef = useRef(data);
   const pendingPayloadRef = useRef(null);
@@ -40,13 +50,17 @@ function Dashboard() {
 
       dataRef.current = json;
       setData(json);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   useEffect(() => {
     fetchStatus();
     const interval = setInterval(fetchStatus, 1000);
-    return () => { clearInterval(interval); }
+    return () => {
+      clearInterval(interval);
+    };
   }, []);
 
   const sendControl = async (updates) => {
@@ -61,9 +75,9 @@ function Dashboard() {
 
     try {
       const res = await fetch(`${API_URL}/control`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         throw new Error(`Control request failed with status ${res.status}`);
@@ -77,11 +91,11 @@ function Dashboard() {
   };
 
   const getIaqColor = (score) => {
-    if (score <= 50) return 'text-neonGreen'; 
+    if (score <= 50) return 'text-neonGreen';
     if (score <= 150) return 'text-yellow-500';
     return 'text-red-500';
   };
-  
+
   const getIaqText = (score) => {
     if (score <= 50) return 'EXCELLENT';
     if (score <= 100) return 'GOOD';
@@ -103,57 +117,50 @@ function Dashboard() {
 
   return (
     <div className="p-4 md:p-8 flex flex-col items-center justify-center min-h-full">
-      
-      {/* Header / Outside Weather */}
       <div className="w-full max-w-5xl flex justify-between items-center mb-6 px-2">
         <div className="flex items-center gap-2 text-gray-400">
           <CloudSun size={20} className={data.outside_temp ? 'text-yellow-400' : 'text-gray-600'} />
           <div className="flex flex-col leading-none">
             <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">Outside</span>
             <span className="font-bold font-mono text-xl text-white">
-              {data.outside_temp ? `${data.outside_temp}Â°` : '--'}
+              {data.outside_temp ? `${data.outside_temp}${DEGREE}` : '--'}
             </span>
           </div>
         </div>
-        
+
         <div className="flex flex-col items-end gap-1">
-           <div className="flex items-center gap-2">
-             {data.locked_out && <span className="text-red-500 font-bold animate-pulse text-xs">âš  LOCKOUT</span>}
-             {data.auto_heat_wait_pending && <span className="text-amber-400 font-bold text-xs">HEAT WAIT</span>}
-             {data.control_pending && <span className="text-neonBlue font-bold text-xs">SYNCING</span>}
-             <span className={`text-xs font-bold px-3 py-1 rounded-full ${data.active ? 'bg-neonGreen text-black animate-pulse' : 'bg-gray-800 text-gray-500'}`}>
-               {data.active ? 'RUNNING' : 'IDLE'}
-             </span>
-           </div>
-           {/* CYCLE TEXT */}
-           {cycleText && (
-             <span className="text-[10px] text-gray-500 font-mono tracking-tight animate-in fade-in slide-in-from-right-2">
-               {cycleText}
-             </span>
-           )}
+          <div className="flex items-center gap-2">
+            {data.locked_out && <span className="text-red-500 font-bold animate-pulse text-xs">{LOCKOUT_LABEL}</span>}
+            {data.auto_heat_wait_pending && <span className="text-amber-400 font-bold text-xs">HEAT WAIT</span>}
+            {data.control_pending && <span className="text-neonBlue font-bold text-xs">SYNCING</span>}
+            <span className={`text-xs font-bold px-3 py-1 rounded-full ${data.active ? 'bg-neonGreen text-black animate-pulse' : 'bg-gray-800 text-gray-500'}`}>
+              {data.active ? 'RUNNING' : 'IDLE'}
+            </span>
+          </div>
+          {cycleText && (
+            <span className="text-[10px] text-gray-500 font-mono tracking-tight animate-in fade-in slide-in-from-right-2">
+              {cycleText}
+            </span>
+          )}
         </div>
       </div>
 
       <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* --- LEFT COLUMN (Display) --- */}
         <div className="flex flex-col gap-6">
           <div className={`bg-card rounded-[2.5rem] p-8 md:p-10 border-2 shadow-2xl relative overflow-visible transition-all duration-500 ${getDashboardAccentClasses(data)}`}>
-            
-            {/* Indicators */}
             <div className="absolute top-6 right-6 md:top-8 md:right-8 flex flex-col items-end gap-2 z-20">
               {data.read_only && (
                 <span className="bg-neonOrange/20 text-neonOrange border border-neonOrange px-3 py-1 rounded-full text-[10px] md:text-xs font-bold animate-pulse whitespace-nowrap">
                   VIEW ONLY
                 </span>
               )}
-              
+
               {data.remote_active && (
                 <div className="group relative flex items-center gap-1.5 text-neonBlue text-[10px] md:text-xs cursor-help bg-neonBlue/10 px-2 md:px-3 py-1 rounded-full border border-neonBlue/20 whitespace-nowrap">
                   <Radio size={12} /> <span className="hidden md:inline">Remote Sensor</span> <span className="md:hidden">Remote</span>
                   <div className="absolute right-0 top-full mt-2 w-40 bg-black border border-gray-700 p-3 rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
-                    <div className="flex justify-between text-gray-400 mb-1 text-xs"><span>Local:</span> <span className="text-white font-bold">{data.local_temp}Â°</span></div>
-                    <div className="flex justify-between text-gray-400 text-xs"><span>Remote:</span> <span className="text-white font-bold">{data.remote_temp}Â°</span></div>
+                    <div className="flex justify-between text-gray-400 mb-1 text-xs"><span>Local:</span> <span className="text-white font-bold">{data.local_temp}{DEGREE}</span></div>
+                    <div className="flex justify-between text-gray-400 text-xs"><span>Remote:</span> <span className="text-white font-bold">{data.remote_temp}{DEGREE}</span></div>
                   </div>
                 </div>
               )}
@@ -165,20 +172,20 @@ function Dashboard() {
                 <span className="text-[5rem] md:text-[7rem] lg:text-[8rem] leading-none font-bold tracking-tighter text-white">
                   {Number(data.temp).toFixed(1)}
                 </span>
-                <span className="text-3xl md:text-4xl text-gray-500 mt-4 md:mt-6">Â°</span>
+                <span className="text-3xl md:text-4xl text-gray-500 mt-4 md:mt-6">{DEGREE}</span>
               </div>
             </div>
 
             <div className="mt-8 md:mt-12 grid grid-cols-2 gap-3 md:gap-4">
               <div className="bg-background/40 rounded-2xl p-4 backdrop-blur-sm">
-                <div className="flex items-center gap-2 text-gray-400 mb-1"><Droplets size={14} /><span className="text-[10px] tracking-wider">HUMIDITY</span></div>
-                <span className="text-xl md:text-2xl font-bold text-white">{data.humidity}%</span>
+                <div className="flex items-center gap-2 text-gray-400 mb-1"><Thermometer size={14} /><span className="text-[10px] tracking-wider">TARGET</span></div>
+                <span className="text-xl md:text-2xl font-bold text-white">{data.target}{DEGREE}</span>
               </div>
               <div className="bg-background/40 rounded-2xl p-4 backdrop-blur-sm">
                 <div className="flex items-center gap-2 text-gray-400 mb-1"><Gauge size={14} /><span className="text-[10px] tracking-wider">PRESSURE</span></div>
                 <span className="text-xl md:text-2xl font-bold text-white">{data.pressure}</span>
               </div>
-              
+
               <div className="bg-background/40 rounded-2xl p-4 backdrop-blur-sm">
                 <div className="flex items-center gap-2 text-gray-400 mb-1"><Activity size={14} /><span className="text-[10px] tracking-wider">AQI SCORE</span></div>
                 <div className="flex items-baseline gap-2">
@@ -186,40 +193,36 @@ function Dashboard() {
                   <span className={`text-[10px] font-bold ${getIaqColor(data.iaq)}`}>{getIaqText(data.iaq)}</span>
                 </div>
               </div>
-              
+
               <div className="bg-background/40 rounded-2xl p-4 backdrop-blur-sm">
-                <div className="flex items-center gap-2 text-gray-400 mb-1"><Thermometer size={14} /><span className="text-[10px] tracking-wider">TARGET</span></div>
-                <span className="text-xl md:text-2xl font-bold text-white">{data.target}Â°</span>
+                <div className="flex items-center gap-2 text-gray-400 mb-1"><Droplets size={14} /><span className="text-[10px] tracking-wider">HUMIDITY</span></div>
+                <span className="text-xl md:text-2xl font-bold text-white">{data.humidity}%</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* --- RIGHT COLUMN (Controls) --- */}
         <div className={`flex flex-col gap-6 transition-opacity duration-300 ${data.read_only ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-           {/* Mode Buttons */}
-           <div className="bg-card rounded-[2rem] p-6 md:p-8 border border-gray-800 shadow-xl">
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-               {DASHBOARD_MODES.map(({ value: m }) => (
-                 <button key={m} onClick={() => sendControl({ mode: m })} className={`p-4 rounded-2xl flex flex-col items-center gap-2 transition-all duration-300 ${getModeButtonClasses(data, m)}`}>
-                   {m === 'HEAT' ? <Flame size={24}/> : m === 'COOL' ? <Snowflake size={24}/> : m === 'AUTO' ? <Activity size={24}/> : <Power size={24}/>} <span className="font-bold text-xs mt-1">{m}</span>
-                 </button>
-               ))}
-             </div>
-           </div>
-           
-           {/* Temp Adjust */}
-           <div className="bg-card rounded-[2rem] p-6 border border-gray-800 shadow-xl flex items-center justify-between">
-              <button onClick={() => sendControl({ target: data.target - 1 })} className="h-16 w-16 md:h-20 md:w-20 rounded-2xl bg-background border border-gray-700 hover:border-white flex items-center justify-center text-white transition-all active:scale-95"><Minus size={24}/></button>
-              <div className="flex flex-col items-center">
-                 <span className="text-gray-500 text-[10px] uppercase tracking-widest mb-1">Set Point</span>
-                 <span className="text-5xl md:text-6xl font-bold">{data.target}Â°</span>
-              </div>
-              <button onClick={() => sendControl({ target: data.target + 1 })} className="h-16 w-16 md:h-20 md:w-20 rounded-2xl bg-background border border-gray-700 hover:border-white flex items-center justify-center text-white transition-all active:scale-95"><Plus size={24}/></button>
-           </div>
-           
-           {/* Fan/Eco */}
-           <div className="grid grid-cols-2 gap-4 md:gap-6">
+          <div className="bg-card rounded-[2rem] p-6 md:p-8 border border-gray-800 shadow-xl">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              {DASHBOARD_MODES.map(({ value: m }) => (
+                <button key={m} onClick={() => sendControl({ mode: m })} className={`p-4 rounded-2xl flex flex-col items-center gap-2 transition-all duration-300 ${getModeButtonClasses(data, m)}`}>
+                  {m === 'HEAT' ? <Flame size={24} /> : m === 'COOL' ? <Snowflake size={24} /> : m === 'AUTO' ? <Activity size={24} /> : <Power size={24} />} <span className="font-bold text-xs mt-1">{m}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-card rounded-[2rem] p-6 border border-gray-800 shadow-xl flex items-center justify-between">
+            <button onClick={() => sendControl({ target: data.target - 1 })} className="h-16 w-16 md:h-20 md:w-20 rounded-2xl bg-background border border-gray-700 hover:border-white flex items-center justify-center text-white transition-all active:scale-95"><Minus size={24} /></button>
+            <div className="flex flex-col items-center">
+              <span className="text-gray-500 text-[10px] uppercase tracking-widest mb-1">Set Point</span>
+              <span className="text-5xl md:text-6xl font-bold">{data.target}{DEGREE}</span>
+            </div>
+            <button onClick={() => sendControl({ target: data.target + 1 })} className="h-16 w-16 md:h-20 md:w-20 rounded-2xl bg-background border border-gray-700 hover:border-white flex items-center justify-center text-white transition-all active:scale-95"><Plus size={24} /></button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 md:gap-6">
             <button onClick={() => sendControl({ fan_mode: data.fan_mode === 'AUTO' ? 'ON' : 'AUTO' })} className={`p-6 rounded-[2rem] border border-gray-800 flex flex-col justify-between h-32 md:h-36 transition-all ${data.fan_mode === 'ON' ? 'bg-white text-black shadow-lg' : 'bg-card hover:bg-white/5 text-gray-400'}`}>
               <div className="flex justify-between items-start w-full">
                 <Wind size={28} className={data.fan_mode === 'ON' ? 'animate-spin-slow' : ''} />
@@ -235,11 +238,10 @@ function Dashboard() {
               </div>
               <span className="font-bold text-left text-sm md:text-lg">Eco Mode</span>
             </button>
-           </div>
+          </div>
         </div>
       </div>
 
-      {/* FOOTER */}
       <div className="mt-16 flex items-center gap-1.5 text-gray-600 text-sm font-mono opacity-50 hover:opacity-100 transition-opacity">
         <span>coded with</span>
         <Heart size={14} className="text-red-500 fill-red-500" />

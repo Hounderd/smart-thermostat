@@ -4,6 +4,8 @@ const CYCLE_LABELS = {
   FAN_COOL: 'FAN COOLING',
 };
 
+const BULLET = '\u2022';
+
 function getCycleLabel(call) {
   return CYCLE_LABELS[call] ?? null;
 }
@@ -41,9 +43,9 @@ export function getCycleText({
     const ago = Math.floor((now - last_end) / 60);
     const label = getCycleLabel(last_active_call);
     if (label) {
-      return `Ran ${label} ${Math.max(1, duration)}m • ${Math.max(0, ago)}m ago`;
+      return `Ran ${label} ${Math.max(1, duration)}m ${BULLET} ${Math.max(0, ago)}m ago`;
     }
-    return `Ran ${Math.max(1, duration)}m • ${Math.max(0, ago)}m ago`;
+    return `Ran ${Math.max(1, duration)}m ${BULLET} ${Math.max(0, ago)}m ago`;
   }
 
   return null;
