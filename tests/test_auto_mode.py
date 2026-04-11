@@ -79,6 +79,8 @@ def make_test_thermostat(
     thermostat.settings = {
         "filter_current_hours": 0,
         "filter_max_hours": 300,
+        "auto_fan_cool_enabled": True,
+        "auto_fan_cool_max_outside_temp": 50.0,
         "eco_hysteresis_mild": 3.0,
         "eco_hysteresis_strict": 0.5,
         "auto_changeover_delay_minutes": 2,
@@ -146,6 +148,7 @@ class AutoModeTests(unittest.TestCase):
 
     def test_auto_mode_starts_cooling_above_band(self):
         thermostat, relay_calls = make_test_thermostat(mode="AUTO", current_temp=74.0, target=72.0)
+        thermostat.outside_temp = 60.0
 
         with patch("thermostat.time.time", return_value=1000):
             SmartThermostat.logic_loop(thermostat, elapsed_seconds=1)
@@ -153,6 +156,30 @@ class AutoModeTests(unittest.TestCase):
         self.assertTrue(thermostat.is_active)
         self.assertEqual("COOL", thermostat.active_call)
         self.assertIn((thermostat.PIN_COOL, True), relay_calls)
+
+    def test_auto_mode_starts_fan_cool_below_outdoor_threshold(self):
+        thermostat, relay_calls = make_test_thermostat(mode="AUTO", current_temp=74.0, target=72.0)
+        thermostat.outside_temp = 43.0
+
+        with patch("thermostat.time.time", return_value=1000):
+            SmartThermostat.logic_loop(thermostat, elapsed_seconds=1)
+
+        self.assertTrue(thermostat.is_active)
+        self.assertEqual("FAN_COOL", thermostat.active_call)
+        self.assertNotIn((thermostat.PIN_COOL, True), relay_calls)
+        self.assertIn((thermostat.PIN_FAN, True), relay_calls)
+
+    def test_auto_mode_can_use_compressor_cool_above_outdoor_threshold(self):
+        thermostat, relay_calls = make_test_thermostat(mode="AUTO", current_temp=74.0, target=72.0)
+        thermostat.outside_temp = 55.0
+
+        with patch("thermostat.time.time", return_value=1000):
+            SmartThermostat.logic_loop(thermostat, elapsed_seconds=1)
+
+        self.assertTrue(thermostat.is_active)
+        self.assertEqual("COOL", thermostat.active_call)
+        self.assertIn((thermostat.PIN_COOL, True), relay_calls)
+        self.assertIn((thermostat.PIN_FAN, True), relay_calls)
 
     def test_auto_mode_stays_idle_inside_deadband(self):
         thermostat, relay_calls = make_test_thermostat(mode="AUTO", current_temp=72.0, target=72.0)
@@ -204,7 +231,7 @@ class AutoModeTests(unittest.TestCase):
             mode="AUTO",
             current_temp=70.0,
             target=72.0,
-            last_stopped_call="COOL",
+            last_stopped_call="FAN_COOL",
             last_call_stopped_at=1000,
         )
 
@@ -252,6 +279,22 @@ class AutoModeTests(unittest.TestCase):
         _, params = fake_connection.cursor_instance.executions[-1]
         self.assertEqual("COOL", params[6])
 
+    def test_history_records_fan_cool_when_auto_is_running(self):
+        thermostat, _ = make_test_thermostat(
+            mode="AUTO",
+            current_temp=74.0,
+            target=72.0,
+            is_active=True,
+            active_call="FAN_COOL",
+        )
+        fake_connection = FakeConnection()
+
+        with patch("thermostat.sqlite3.connect", return_value=fake_connection):
+            SmartThermostat.save_history(thermostat)
+
+        _, params = fake_connection.cursor_instance.executions[-1]
+        self.assertEqual("FAN_COOL", params[6])
+
     def test_write_status_includes_active_call_for_auto_mode(self):
         thermostat, _ = make_test_thermostat(
             mode="AUTO",
@@ -271,6 +314,26 @@ class AutoModeTests(unittest.TestCase):
             SmartThermostat.write_status(thermostat)
 
         self.assertEqual("COOL", captured_status["active_call"])
+
+    def test_write_status_includes_fan_cool_active_call(self):
+        thermostat, _ = make_test_thermostat(
+            mode="AUTO",
+            current_temp=74.0,
+            target=72.0,
+            is_active=True,
+            active_call="FAN_COOL",
+        )
+        thermostat.sensor_adt = None
+        thermostat.sensor_bme = None
+        captured_status = {}
+
+        with patch("thermostat.time.time", return_value=1001), patch(
+            "builtins.open",
+            mock_open(),
+        ), patch("thermostat.json.dump", side_effect=lambda data, _: captured_status.update(data)):
+            SmartThermostat.write_status(thermostat)
+
+        self.assertEqual("FAN_COOL", captured_status["active_call"])
 
     def test_write_status_reports_configured_core_deadband(self):
         thermostat, _ = make_test_thermostat(

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Thermometer, Droplets, Flame, Snowflake, Power, Plus, Minus, Wind, Leaf, Gauge, Activity, Radio, Heart, CloudSun } from 'lucide-react';
 import { buildControlTransaction, matchesControlPayload } from './dashboardState';
-import { DASHBOARD_MODES, getModeButtonClasses } from './dashboardModes';
+import { DASHBOARD_MODES, getDashboardAccentClasses, getModeButtonClasses } from './dashboardModes';
 
 const API_URL = ""; 
 
@@ -105,13 +105,6 @@ function Dashboard() {
     return 'POOR';
   };
 
-  const getThemeColor = () => {
-    if (data.mode === 'HEAT') return 'text-neonOrange border-neonOrange';
-    if (data.mode === 'COOL') return 'text-neonBlue border-neonBlue';
-    if (data.mode === 'AUTO') return 'text-neonGreen border-neonGreen';
-    return 'text-gray-500 border-gray-500';
-  };
-
   const cycleText = getCycleText();
 
   return (
@@ -150,7 +143,7 @@ function Dashboard() {
         
         {/* --- LEFT COLUMN (Display) --- */}
         <div className="flex flex-col gap-6">
-          <div className={`bg-card rounded-[2.5rem] p-8 md:p-10 border-2 shadow-2xl relative overflow-visible transition-all duration-500 ${getThemeColor()}`}>
+          <div className={`bg-card rounded-[2.5rem] p-8 md:p-10 border-2 shadow-2xl relative overflow-visible transition-all duration-500 ${getDashboardAccentClasses(data)}`}>
             
             {/* Indicators */}
             <div className="absolute top-6 right-6 md:top-8 md:right-8 flex flex-col items-end gap-2 z-20">

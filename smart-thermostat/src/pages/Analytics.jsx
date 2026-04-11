@@ -17,6 +17,8 @@ function Analytics() {
     core_deadband: 0.5,
     eco_hysteresis_mild: 3.0,
     eco_hysteresis_strict: 0.5,
+    auto_fan_cool_enabled: true,
+    auto_fan_cool_max_outside_temp: 50,
     auto_changeover_delay_minutes: 2,
     auto_reboot_enabled: false,
     auto_reboot_hours: 24,
@@ -155,7 +157,7 @@ function Analytics() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 pb-4">
             <div>
               <label className="text-xs text-gray-400">Core Deadband</label>
               <div className="flex items-center gap-2">
@@ -179,6 +181,30 @@ function Analytics() {
                 <span className="text-white w-10">{settings.auto_changeover_delay_minutes}</span>
               </div>
               <p className="text-[10px] text-gray-500">In AUTO mode, waits this long before switching from heating to cooling or cooling to heating.</p>
+            </div>
+            <div className="rounded-2xl border border-gray-800 bg-background/40 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <label className="text-xs text-white uppercase tracking-widest">AUTO Fan Cooling</label>
+                  <p className="text-[10px] text-gray-500 mt-2">When AUTO wants cooling and outside air is cool enough, use the fan relay instead of the compressor.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, auto_fan_cool_enabled: !settings.auto_fan_cool_enabled })}
+                  className={`min-w-[82px] rounded-full px-3 py-2 text-[11px] font-bold transition-colors ${
+                    settings.auto_fan_cool_enabled
+                      ? 'bg-white text-black'
+                      : 'bg-card border border-gray-700 text-gray-400'
+                  }`}
+                >
+                  {settings.auto_fan_cool_enabled ? 'ENABLED' : 'DISABLED'}
+                </button>
+              </div>
+              <div className="mt-4 flex items-center gap-2">
+                <input type="range" min="30" max="70" step="1" value={settings.auto_fan_cool_max_outside_temp} onChange={e => setSettings({ ...settings, auto_fan_cool_max_outside_temp: parseFloat(e.target.value) })} className="w-full accent-white" />
+                <span className="text-white w-12">{settings.auto_fan_cool_max_outside_temp}</span>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-2">Use fan cooling when outside temperature is at or below this threshold.</p>
             </div>
             <div>
               <label className="text-xs text-neonBlue">Strict Weather Deadband (Default 0.5 deg)</label>

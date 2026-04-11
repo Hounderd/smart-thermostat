@@ -58,6 +58,8 @@ class SystemSettings(BaseModel):
     core_deadband: float
     eco_hysteresis_mild: float
     eco_hysteresis_strict: float
+    auto_fan_cool_enabled: bool
+    auto_fan_cool_max_outside_temp: float
     auto_changeover_delay_minutes: float
     auto_reboot_enabled: bool
     auto_reboot_hours: float

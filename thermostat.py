@@ -166,6 +166,7 @@ class SmartThermostat:
             "filter_current_hours": 0, "filter_max_hours": 300,
             "core_deadband": 0.5,
             "eco_hysteresis_mild": 3.0, "eco_hysteresis_strict": 0.5,
+            "auto_fan_cool_enabled": True, "auto_fan_cool_max_outside_temp": 50.0,
             "auto_changeover_delay_minutes": 2,
             "cost_kwh": 0.14, "cost_therm": 1.10, "ac_kw": 3.5, "furnace_btu": 80000,
             "auto_reboot_enabled": False, "auto_reboot_hours": 24,
@@ -227,22 +228,41 @@ class SmartThermostat:
     def get_core_deadband(self):
         return float(self.settings.get("core_deadband", self.HYSTERESIS))
 
+    def is_cooling_call(self, call):
+        return call in ("COOL", "FAN_COOL")
+
+    def get_call_family(self, call):
+        if call == "HEAT":
+            return "HEAT"
+        if self.is_cooling_call(call):
+            return "COOL"
+        return None
+
+    def should_use_auto_fan_cool(self):
+        if not self.settings.get("auto_fan_cool_enabled", True):
+            return False
+        if self.outside_temp is None:
+            return False
+        return self.outside_temp <= float(self.settings.get("auto_fan_cool_max_outside_temp", 50.0))
+
     def get_auto_changeover_delay_seconds(self):
         minutes = float(self.settings.get("auto_changeover_delay_minutes", 2))
         return max(0.0, minutes * 60)
 
     def remember_stopped_call(self, call, stopped_at=None):
-        if call not in ("HEAT", "COOL"):
+        if call not in ("HEAT", "COOL", "FAN_COOL"):
             return
         self.last_stopped_call = call
         self.last_call_stopped_at = time.time() if stopped_at is None else stopped_at
 
     def get_auto_changeover_deadline(self, requested_call):
-        if requested_call not in ("HEAT", "COOL"):
+        requested_family = self.get_call_family(requested_call)
+        if requested_family is None:
             return None
 
-        opposite_call = "COOL" if requested_call == "HEAT" else "HEAT"
-        if self.last_stopped_call != opposite_call or self.last_call_stopped_at <= 0:
+        stopped_family = self.get_call_family(self.last_stopped_call)
+        opposite_family = "COOL" if requested_family == "HEAT" else "HEAT"
+        if stopped_family != opposite_family or self.last_call_stopped_at <= 0:
             return None
 
         delay_seconds = self.get_auto_changeover_delay_seconds()
@@ -419,6 +439,8 @@ class SmartThermostat:
             self._relay(self.PIN_COOL, True)
         elif call == "HEAT":
             self._relay(self.PIN_HEAT, True)
+        elif call == "FAN_COOL":
+            pass
         else:
             return
 
@@ -431,6 +453,8 @@ class SmartThermostat:
         if self.active_call == "COOL":
             self._relay(self.PIN_COOL, False)
             self.save_lockout()
+        elif self.active_call == "FAN_COOL":
+            self._relay(self.PIN_FAN, False)
         elif self.active_call == "HEAT":
             self._relay(self.PIN_HEAT, False)
         else:
@@ -537,7 +561,7 @@ class SmartThermostat:
             low_threshold = active_target - active_hysteresis
             high_threshold = active_target + active_hysteresis
 
-            if self.active_call == "COOL":
+            if self.is_cooling_call(self.active_call):
                 if self.current_temp < low_threshold:
                     self.stop_active_call()
             elif self.active_call == "HEAT":
@@ -545,14 +569,15 @@ class SmartThermostat:
                     self.stop_active_call()
             else:
                 if self.current_temp > high_threshold:
-                    changeover_deadline = self.get_auto_changeover_deadline("COOL")
+                    requested_cooling_call = "FAN_COOL" if self.should_use_auto_fan_cool() else "COOL"
+                    changeover_deadline = self.get_auto_changeover_deadline(requested_cooling_call)
                     if changeover_deadline and now < changeover_deadline:
                         self.auto_changeover_pending = True
                         self.auto_changeover_until = changeover_deadline
-                    elif (now - self.last_ac_time) < self.CYCLE_DELAY:
+                    elif requested_cooling_call == "COOL" and (now - self.last_ac_time) < self.CYCLE_DELAY:
                         self.locked_out = True
                     else:
-                        self.start_call("COOL")
+                        self.start_call(requested_cooling_call)
                 elif self.current_temp < low_threshold:
                     changeover_deadline = self.get_auto_changeover_deadline("HEAT")
                     if changeover_deadline and now < changeover_deadline:
@@ -563,7 +588,7 @@ class SmartThermostat:
 
         fan_should_be_on = False
         if self.fan_mode == "ON": fan_should_be_on = True
-        elif self.mode == "COOL" and self.is_active: fan_should_be_on = True
+        elif self.is_cooling_call(self.active_call) and self.is_active: fan_should_be_on = True
         elif self.mode == "HEAT" and self.is_active and self.FAN_ON_HEAT: fan_should_be_on = True
 
         self._relay(self.PIN_FAN, fan_should_be_on)
