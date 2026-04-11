@@ -1,6 +1,6 @@
 # PyThermostat: Pro-Grade DIY Smart Thermostat
 
-A professional-grade, open-source smart thermostat built with **Python (FastAPI)** and **React**. Designed to run on a Raspberry Pi, this system offers standard HVAC control plus advanced "Eco Intelligence" features typically found in high-end proprietary devices like Nest or Ecobee.
+A professional-grade, open-source smart thermostat built with **Python (FastAPI)** and **React**. Designed to run on a Raspberry Pi, this system provides standard HVAC control plus weather-aware automation, analytics, and a modern dashboard UI.
 
 ![PyThermostat dashboard screenshot](https://download.nodd.dev/smart-thermostat-screenshot.png)
 
@@ -19,7 +19,7 @@ Here is the fully assembled smart thermostat, alongside the internal wiring and 
 </p>
 
 ## Custom 3D Printed Enclosure [(download here)](https://download.nodd.dev/thermostat-case.rar)
-A minimal 3D-printable case designed specifically to house the Raspberry Pi alongside the 4-Channel Relay Hat perfectly. 
+A minimal 3D-printable case designed specifically to house the Raspberry Pi alongside the 4-channel relay hat.
 
 <p align="center">
   <img src="https://download.nodd.dev/case_model.png" width="50%" alt="3D Printable Case Model" />
@@ -27,120 +27,146 @@ A minimal 3D-printable case designed specifically to house the Raspberry Pi alon
 
 ---
 
-## 🚀 Features
+## Features
 
-*   **Complete HVAC Control:** Supports 24V Heating, Cooling, and Fan systems (Standard Split Systems).
-*   **Safety First:** Built-in equipment protection (e.g., 5-minute compressor short-cycle lockout).
-*   **Eco Intelligence Engine:**
-    *   **Weather Aware:** Runs a background worker to fetch local forecast data (Open-Meteo) and adjust inside behavior dynamically.
-    *   **Smart Hysteresis:** Widens the temperature swing on mild days to reduce rapid cycling and save energy.
-    *   **Heat Loss Analysis:** Calculates your home's thermal efficiency in real-time based on runtime vs. outside temperature.
-    *   **Predictive Recovery:** Pre-heats or pre-cools the home before you wake up based on empirical heat-gain calculations.
-*   **Detailed Analytics & History:**
-    *   Logs high-resolution HVAC events, temperature, humidity, and pressure to a local `history.db` SQLite database.
-    *   Energy Cost Estimator (configurable kWh/Therm rates).
-    *   Filter Health tracking based on active blower fan hours.
-*   **Air Quality Monitoring:** Fully integrated support for the **BME680** sensor to calculate the IAQ (Indoor Air Quality) index using VOC gas resistance and humidity.
-*   **Remote Sensors:** Supports external wireless temperature sensors via REST HTTP endpoints for multi-room averaging or "Max Comfort" modes.
-*   **Modern UI:** A beautiful, responsive React dashboard with "Full Control" and "View-Only" guest modes.
+* **Complete HVAC Control:** Supports 24V heating and cooling control with a separate fan relay for manual fan-only circulation and low-temperature `FAN_COOL` operation.
+* **Single-Target `AUTO` Mode:** Automatically heats or cools around one target temperature using a configurable core deadband.
+* **Safety First:** Includes compressor short-cycle protection with a 5-minute cooling lockout.
+* **Eco Intelligence Engine:**
+  * **Weather Aware:** Uses Open-Meteo to fetch local forecast data and adjust control behavior.
+  * **Smart Hysteresis:** Widens the temperature swing on mild days to reduce cycling.
+  * **Heat Loss Analysis:** Estimates thermal performance from runtime and outdoor conditions.
+  * **Predictive Recovery:** Pre-heats the home before wake-up time based on measured behavior.
+  * **AUTO Changeover Delay:** Prevents direct heat/cool family flip-flops in `AUTO`.
+  * **AUTO Fan Cooling:** When outside air is cool enough, `AUTO` can use the fan relay instead of the compressor and only fall back to compressor cooling if the temperature does not drop enough within a configurable window.
+* **Detailed Analytics & History:**
+  * Logs HVAC events, temperature, humidity, pressure, gas, and outside temperature to local SQLite history.
+  * Provides configurable cost estimation for electric cooling and gas heating.
+  * Tracks filter life based on active HVAC runtime.
+* **Air Quality Monitoring:** Supports the **BME680** sensor for humidity, pressure, gas resistance, and IAQ calculations.
+* **Remote Sensors:** Accepts external temperature sensor updates via REST for remote comfort control.
+* **Operational Hardening:** Supports idle-only Raspberry Pi auto reboot with status visibility in the Analytics dashboard.
+* **Modern UI:** Responsive React dashboard with full local control and read-only external access.
 
-## 🛠️ Hardware Requirements
+## Hardware Requirements
 
-*   **Raspberry Pi:** 3B+ or 4 recommended (The main logic core).
-*   **Relay Module:** Keyestudio 4-Channel Relay Hat (or generic 5V relay module).
-*   **Sensors (I2C):**
-    *   **Adafruit BME680** - Measures Temperature, Humidity, Barometric Pressure, and VOC Gas.
-    *   **Adafruit ADT7410** - *(Optional)* For high-precision temperature measurements.
-*   **Power Supply:** 24VAC to 5VDC Buck Converter (Highly recommended to power the Pi directly from the HVAC's C-wire).
+* **Raspberry Pi:** 3B+ or 4 recommended
+* **Relay Module:** Keyestudio 4-Channel Relay Hat (or generic 5V relay module)
+* **Sensors (I2C):**
+  * **Adafruit BME680** for temperature, humidity, pressure, and VOC gas
+  * **Adafruit ADT7410** *(optional)* for higher-precision temperature measurements
+* **Power Supply:** 24VAC to 5VDC buck converter recommended so the Pi can be powered from the HVAC system's C-wire
 
-## 📊 Wiring Guide
+## Wiring Guide
 
-**⚠️ WARNING:** HVAC systems use 24V AC. Touching the `R` (Power) and `C` (Common) wires together will short your transformer and blow a fuse in your furnace. **Always turn off the breaker before wiring.**
+**Warning:** HVAC systems use 24V AC. Touching the `R` (power) and `C` (common) wires together can short your transformer and blow a furnace fuse. **Turn off the breaker before wiring anything.**
 
 ### Relay Mapping
 | Relay Channel | GPIO Pin (BCM) | HVAC Wire Color | Function |
 | :--- | :--- | :--- | :--- |
-| **Relay 1** | GPIO 4 | **Green (G)** | Fan Blower |
-| **Relay 2** | GPIO 22 | **Yellow (Y)** | AC Compressor |
-| **Relay 3** | GPIO 6 | **White (W)** | Furnace Heat |
-| **COM Ports** | - | **Red (R)** | 24V Power Source |
+| **Relay 1** | GPIO 4 | **Green (G)** | Fan relay |
+| **Relay 2** | GPIO 22 | **Yellow (Y)** | AC compressor |
+| **Relay 3** | GPIO 6 | **White (W)** | Furnace heat |
+| **COM Ports** | - | **Red (R)** | 24V power source |
+
+### Relay Behavior
+* **Manual `COOL`:** Energizes only the cooling/compressor relay. The HVAC system's own blower logic handles air movement.
+* **Manual `HEAT`:** Energizes only the heat relay.
+* **Fan `ON`:** Energizes only the fan relay.
+* **`FAN_COOL`:** Energizes only the fan relay as an energy-saving `AUTO` cooling path when outdoor air is cool enough.
 
 ### Sensor Wiring (I2C)
-*   **SDA** -> GPIO 2
-*   **SCL** -> GPIO 3
-*   **VCC** -> 3.3V
-*   **GND** -> GND
+* **SDA** -> GPIO 2
+* **SCL** -> GPIO 3
+* **VCC** -> 3.3V
+* **GND** -> GND
 
-## 🔧 Installation Guide
+## Installation Guide
 
 ### 1. System Prep
-Enable the I2C interface on your Raspberry Pi:
+Enable I2C on the Raspberry Pi:
+
 ```bash
 sudo raspi-config
-# Navigate: Interface Options -> I2C -> Enable
+# Interface Options -> I2C -> Enable
 ```
 
 ### 2. Backend Setup
 Clone the repository and install the Python dependencies:
+
 ```bash
 git clone https://github.com/Hounderd/smart-thermostat.git
 cd smart-thermostat
 
-# Install requirements
 pip3 install fastapi uvicorn RPi.GPIO requests
 pip3 install adafruit-circuitpython-bme680 adafruit-circuitpython-adt7410
 ```
 
 ### 3. Frontend Setup
-Build the React web application:
+Build the React application:
+
 ```bash
 cd smart-thermostat
 npm install
 npm run build
 ```
 
-The FastAPI server serves the built frontend directly from `smart-thermostat/dist`. There is no separate root-level frontend artifact to sync during deploys.
+The FastAPI server serves the built frontend directly from `smart-thermostat/dist`.
 
 ### 4. Process Management (PM2)
-We highly recommend using PM2 to keep both the background logic daemon and the API server running resiliently:
+Using PM2 is recommended for both the HVAC logic loop and the API server:
+
 ```bash
-# Install PM2 globally
 sudo npm install -g pm2
 
-# 1. Start the actual HVAC Logic Core
-pm2 start thermostat.py --interpreter python3 --name thermostat-core
+# HVAC control engine
+pm2 start thermostat.py --interpreter python3 --name thermostat
 
-# 2. Start the FastAPI Web Server (serves React & API)
+# FastAPI server
 pm2 start "uvicorn api:app --host 0.0.0.0 --port 8000" --name thermostat-api
 
-# Save the PM2 list so it restarts elegantly on reboot
 pm2 save
 pm2 startup
 ```
 
-## ⚙️ Configuration
-The system parameters can be customized directly in the Analytics Dashboard UI, or manually by editing `settings.json`:
+## Configuration
+
+Most settings can be changed in the Analytics dashboard, or directly in `settings.json`:
+
 ```json
 {
-    "cost_kwh": 0.14,
-    "cost_therm": 1.10,
-    "ac_kw": 3.5,
-    "furnace_btu": 80000,
-    "filter_max_hours": 300,
-    "filter_current_hours": 0,
-    "eco_hysteresis_mild": 3.0,
-    "eco_hysteresis_strict": 0.5,
-    "auto_reboot_enabled": false,
-    "auto_reboot_hours": 24
+  "cost_kwh": 0.14,
+  "cost_therm": 1.10,
+  "ac_kw": 3.5,
+  "furnace_btu": 80000,
+  "filter_max_hours": 300,
+  "filter_current_hours": 0,
+  "core_deadband": 0.5,
+  "eco_hysteresis_mild": 3.0,
+  "eco_hysteresis_strict": 0.5,
+  "auto_fan_cool_enabled": true,
+  "auto_fan_cool_max_outside_temp": 50.0,
+  "auto_fan_cool_fallback_minutes": 10.0,
+  "auto_fan_cool_min_drop": 0.5,
+  "auto_changeover_delay_minutes": 2,
+  "auto_reboot_enabled": false,
+  "auto_reboot_hours": 24
 }
 ```
 
-When automatic reboot is enabled, the thermostat marks a reboot as due after the configured uptime interval and waits until the HVAC is idle before requesting a full Raspberry Pi reboot. It never interrupts an active heating or cooling run.
+### Key Behavior Notes
+* `AUTO` uses the configured `core_deadband` around a single target temperature.
+* `AUTO Fan Cooling` can choose `FAN_COOL` below the configured outside temperature threshold.
+* If `FAN_COOL` does not reduce room temperature by at least `auto_fan_cool_min_drop` within `auto_fan_cool_fallback_minutes`, `AUTO` falls back to compressor `COOL`.
+* `auto_changeover_delay_minutes` blocks direct heating/cooling family swaps in `AUTO`.
+* Automatic reboot waits until the HVAC is idle before requesting a full Raspberry Pi reboot.
 
-## 🔒 Security & Access Control
-The FastAPI app contains intelligent IP-blocking middleware:
-*   **Local Network (192.168.x.x or 10.x.x.x):** Allowed full read/write Control.
-*   **External Network (Port Forwarded/Proxy):** Downgraded to a Read-Only Mode automatically. Guests can view the status but cannot manipulate the temperature.
+## Security & Access Control
+
+The FastAPI app applies IP-based write protection:
+
+* **Local Network (`192.168.x.x` or `127.0.0.1`):** Full read/write control
+* **External Network:** Read-only access; status is visible but control changes are blocked
 
 ##
-Created with ❤️ by [Hounderd](https://github.com/Hounderd).
+Created with love by [Hounderd](https://github.com/Hounderd).
