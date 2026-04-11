@@ -13,7 +13,7 @@ function Dashboard() {
     mode: "OFF", fan_mode: "AUTO", eco_mode: false,
     active_call: null,
     last_active_call: null,
-    active: false, locked_out: false, remote_active: false, read_only: false,
+    active: false, locked_out: false, auto_heat_wait_pending: false, auto_heat_wait_until: null, remote_active: false, read_only: false,
     run_start: 0, last_duration: 0, last_end: 0, control_pending: false
   });
   const dataRef = useRef(data);
@@ -93,6 +93,8 @@ function Dashboard() {
     now: Date.now() / 1000,
     active: data.active,
     active_call: data.active_call,
+    auto_heat_wait_pending: data.auto_heat_wait_pending,
+    auto_heat_wait_until: data.auto_heat_wait_until,
     run_start: data.run_start,
     last_duration: data.last_duration,
     last_end: data.last_end,
@@ -109,14 +111,15 @@ function Dashboard() {
           <div className="flex flex-col leading-none">
             <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">Outside</span>
             <span className="font-bold font-mono text-xl text-white">
-              {data.outside_temp ? `${data.outside_temp}°` : '--'}
+              {data.outside_temp ? `${data.outside_temp}Â°` : '--'}
             </span>
           </div>
         </div>
         
         <div className="flex flex-col items-end gap-1">
            <div className="flex items-center gap-2">
-             {data.locked_out && <span className="text-red-500 font-bold animate-pulse text-xs">⚠ LOCKOUT</span>}
+             {data.locked_out && <span className="text-red-500 font-bold animate-pulse text-xs">âš  LOCKOUT</span>}
+             {data.auto_heat_wait_pending && <span className="text-amber-400 font-bold text-xs">HEAT WAIT</span>}
              {data.control_pending && <span className="text-neonBlue font-bold text-xs">SYNCING</span>}
              <span className={`text-xs font-bold px-3 py-1 rounded-full ${data.active ? 'bg-neonGreen text-black animate-pulse' : 'bg-gray-800 text-gray-500'}`}>
                {data.active ? 'RUNNING' : 'IDLE'}
@@ -149,8 +152,8 @@ function Dashboard() {
                 <div className="group relative flex items-center gap-1.5 text-neonBlue text-[10px] md:text-xs cursor-help bg-neonBlue/10 px-2 md:px-3 py-1 rounded-full border border-neonBlue/20 whitespace-nowrap">
                   <Radio size={12} /> <span className="hidden md:inline">Remote Sensor</span> <span className="md:hidden">Remote</span>
                   <div className="absolute right-0 top-full mt-2 w-40 bg-black border border-gray-700 p-3 rounded-xl shadow-xl opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none">
-                    <div className="flex justify-between text-gray-400 mb-1 text-xs"><span>Local:</span> <span className="text-white font-bold">{data.local_temp}°</span></div>
-                    <div className="flex justify-between text-gray-400 text-xs"><span>Remote:</span> <span className="text-white font-bold">{data.remote_temp}°</span></div>
+                    <div className="flex justify-between text-gray-400 mb-1 text-xs"><span>Local:</span> <span className="text-white font-bold">{data.local_temp}Â°</span></div>
+                    <div className="flex justify-between text-gray-400 text-xs"><span>Remote:</span> <span className="text-white font-bold">{data.remote_temp}Â°</span></div>
                   </div>
                 </div>
               )}
@@ -162,7 +165,7 @@ function Dashboard() {
                 <span className="text-[5rem] md:text-[7rem] lg:text-[8rem] leading-none font-bold tracking-tighter text-white">
                   {Number(data.temp).toFixed(1)}
                 </span>
-                <span className="text-3xl md:text-4xl text-gray-500 mt-4 md:mt-6">°</span>
+                <span className="text-3xl md:text-4xl text-gray-500 mt-4 md:mt-6">Â°</span>
               </div>
             </div>
 
@@ -186,7 +189,7 @@ function Dashboard() {
               
               <div className="bg-background/40 rounded-2xl p-4 backdrop-blur-sm">
                 <div className="flex items-center gap-2 text-gray-400 mb-1"><Thermometer size={14} /><span className="text-[10px] tracking-wider">TARGET</span></div>
-                <span className="text-xl md:text-2xl font-bold text-white">{data.target}°</span>
+                <span className="text-xl md:text-2xl font-bold text-white">{data.target}Â°</span>
               </div>
             </div>
           </div>
@@ -210,7 +213,7 @@ function Dashboard() {
               <button onClick={() => sendControl({ target: data.target - 1 })} className="h-16 w-16 md:h-20 md:w-20 rounded-2xl bg-background border border-gray-700 hover:border-white flex items-center justify-center text-white transition-all active:scale-95"><Minus size={24}/></button>
               <div className="flex flex-col items-center">
                  <span className="text-gray-500 text-[10px] uppercase tracking-widest mb-1">Set Point</span>
-                 <span className="text-5xl md:text-6xl font-bold">{data.target}°</span>
+                 <span className="text-5xl md:text-6xl font-bold">{data.target}Â°</span>
               </div>
               <button onClick={() => sendControl({ target: data.target + 1 })} className="h-16 w-16 md:h-20 md:w-20 rounded-2xl bg-background border border-gray-700 hover:border-white flex items-center justify-center text-white transition-all active:scale-95"><Plus size={24}/></button>
            </div>
