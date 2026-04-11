@@ -12,11 +12,21 @@ export function getCycleText({
   now,
   active,
   active_call,
+  auto_heat_wait_pending,
+  auto_heat_wait_until,
   run_start,
   last_duration,
   last_end,
   last_active_call,
 }) {
+  if (auto_heat_wait_pending) {
+    if (auto_heat_wait_until && auto_heat_wait_until > now) {
+      const minutesLeft = Math.max(1, Math.ceil((auto_heat_wait_until - now) / 60));
+      return `Waiting for passive warming ${minutesLeft}m left`;
+    }
+    return 'Waiting for passive warming';
+  }
+
   if (active && run_start > 0) {
     const duration = Math.floor((now - run_start) / 60);
     const label = getCycleLabel(active_call);
