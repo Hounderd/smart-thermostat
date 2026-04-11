@@ -120,6 +120,61 @@ function Analytics() {
   const filterPercent = status ? Math.max(0, 100 - ((status.filter_hours / status.filter_max) * 100)) : 100;
   const filterColor = filterPercent > 20 ? 'text-neonGreen' : 'text-red-500';
 
+  const sectionTitleClass = "text-xs font-bold uppercase tracking-[0.24em] text-gray-400";
+  const sectionCopyClass = "text-xs text-gray-500";
+  const settingTitleClass = "text-sm font-semibold text-white";
+  const settingCopyClass = "text-[11px] leading-5 text-gray-500";
+  const inputClass = "w-full bg-background border border-gray-700 rounded-2xl px-4 py-3 text-white outline-none transition-colors focus:border-white";
+
+  const updateSetting = (key, value) => setSettings(current => ({ ...current, [key]: value }));
+
+  const SectionShell = ({ title, description, children }) => (
+    <section className="rounded-[2rem] border border-gray-800 bg-background/30 p-5 md:p-6">
+      <div className="mb-5">
+        <h4 className={sectionTitleClass}>{title}</h4>
+        <p className={`${sectionCopyClass} mt-2 max-w-2xl`}>{description}</p>
+      </div>
+      {children}
+    </section>
+  );
+
+  const InputField = ({ label, value, onChange, step, min }) => (
+    <div className="space-y-2">
+      <label className="text-xs font-medium text-gray-500">{label}</label>
+      <input
+        type="number"
+        min={min}
+        step={step}
+        value={value}
+        onChange={onChange}
+        className={inputClass}
+      />
+    </div>
+  );
+
+  const SliderRow = ({ title, description, value, min, max, step, accentClass, valueWidth = 'w-12', onChange }) => (
+    <div className="rounded-2xl border border-gray-800 bg-card/60 p-4 md:p-5">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="max-w-xl">
+          <h5 className={settingTitleClass}>{title}</h5>
+          <p className={`${settingCopyClass} mt-1`}>{description}</p>
+        </div>
+        <div className="flex items-center gap-3 md:min-w-[320px]">
+          <input
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={value}
+            onChange={onChange}
+            className={`w-full ${accentClass}`}
+          />
+          <span className={`text-sm font-semibold text-white text-right ${valueWidth}`}>{value}</span>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto flex flex-col gap-8 pb-32">
       <div className="flex justify-between items-center">
@@ -135,145 +190,210 @@ function Analytics() {
       </div>
 
       {showSettings && (
-        <div className="bg-card border border-gray-800 rounded-3xl p-6 grid gap-4 animate-in fade-in zoom-in duration-300">
-          <h3 className="font-bold text-white mb-2">Configuration</h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-gray-800 pb-4">
+        <div className="bg-card border border-gray-800 rounded-3xl p-6 md:p-8 grid gap-6 animate-in fade-in zoom-in duration-300">
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <label className="text-xs text-gray-500">Electricity Cost ($/kWh)</label>
-              <input type="number" step="0.01" value={settings.cost_kwh} onChange={e => setSettings({ ...settings, cost_kwh: parseFloat(e.target.value) })} className="w-full bg-background border border-gray-700 rounded p-2 text-white" />
+              <h3 className="text-white text-lg font-bold">Configuration</h3>
+              <p className="text-sm text-gray-500">Organized settings for comfort behavior, costs, and maintenance.</p>
             </div>
-            <div>
-              <label className="text-xs text-gray-500">Gas Cost ($/Therm)</label>
-              <input type="number" step="0.01" value={settings.cost_therm} onChange={e => setSettings({ ...settings, cost_therm: parseFloat(e.target.value) })} className="w-full bg-background border border-gray-700 rounded p-2 text-white" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">AC Power (kW)</label>
-              <input type="number" step="0.1" value={settings.ac_kw} onChange={e => setSettings({ ...settings, ac_kw: parseFloat(e.target.value) })} className="w-full bg-background border border-gray-700 rounded p-2 text-white" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Furnace Size (BTU)</label>
-              <input type="number" step="1000" value={settings.furnace_btu} onChange={e => setSettings({ ...settings, furnace_btu: parseFloat(e.target.value) })} className="w-full bg-background border border-gray-700 rounded p-2 text-white" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 pb-4">
-            <div>
-              <label className="text-xs text-gray-400">Core Deadband</label>
-              <div className="flex items-center gap-2">
-                <input type="range" min="0.1" max="3" step="0.1" value={settings.core_deadband} onChange={e => setSettings({ ...settings, core_deadband: parseFloat(e.target.value) })} className="w-full accent-white" />
-                <span className="text-white w-10">{settings.core_deadband}</span>
-              </div>
-              <p className="text-[10px] text-gray-500">Base hysteresis used for normal heat, cool, and auto mode behavior.</p>
-            </div>
-            <div>
-              <label className="text-xs text-neonGreen">Mild Weather Deadband (Default 3 deg)</label>
-              <div className="flex items-center gap-2">
-                <input type="range" min="1" max="6" step="0.5" value={settings.eco_hysteresis_mild} onChange={e => setSettings({ ...settings, eco_hysteresis_mild: parseFloat(e.target.value) })} className="w-full accent-neonGreen" />
-                <span className="text-white w-8">{settings.eco_hysteresis_mild}</span>
-              </div>
-              <p className="text-[10px] text-gray-500">Range allowed when outside is 55-75 F</p>
-            </div>
-            <div>
-              <label className="text-xs text-amber-400">AUTO Changeover Delay (Minutes)</label>
-              <div className="flex items-center gap-2">
-                <input type="range" min="0" max="10" step="0.5" value={settings.auto_changeover_delay_minutes} onChange={e => setSettings({ ...settings, auto_changeover_delay_minutes: parseFloat(e.target.value) })} className="w-full accent-amber-400" />
-                <span className="text-white w-10">{settings.auto_changeover_delay_minutes}</span>
-              </div>
-              <p className="text-[10px] text-gray-500">In AUTO mode, waits this long before switching from heating to cooling or cooling to heating.</p>
-            </div>
-            <div className="rounded-2xl border border-gray-800 bg-background/40 p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <label className="text-xs text-white uppercase tracking-widest">AUTO Fan Cooling</label>
-                  <p className="text-[10px] text-gray-500 mt-2">When AUTO wants cooling and outside air is cool enough, use the fan relay instead of the compressor.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSettings({ ...settings, auto_fan_cool_enabled: !settings.auto_fan_cool_enabled })}
-                  className={`min-w-[82px] rounded-full px-3 py-2 text-[11px] font-bold transition-colors ${
-                    settings.auto_fan_cool_enabled
-                      ? 'bg-white text-black'
-                      : 'bg-card border border-gray-700 text-gray-400'
-                  }`}
-                >
-                  {settings.auto_fan_cool_enabled ? 'ENABLED' : 'DISABLED'}
-                </button>
-              </div>
-              <div className="mt-4 flex items-center gap-2">
-                <input type="range" min="30" max="70" step="1" value={settings.auto_fan_cool_max_outside_temp} onChange={e => setSettings({ ...settings, auto_fan_cool_max_outside_temp: parseFloat(e.target.value) })} className="w-full accent-white" />
-                <span className="text-white w-12">{settings.auto_fan_cool_max_outside_temp}</span>
-              </div>
-              <p className="text-[10px] text-gray-500 mt-2">Use fan cooling when outside temperature is at or below this threshold.</p>
-            </div>
-            <div>
-              <label className="text-xs text-neonBlue">Strict Weather Deadband (Default 0.5 deg)</label>
-              <div className="flex items-center gap-2">
-                <input type="range" min="0.1" max="2" step="0.1" value={settings.eco_hysteresis_strict} onChange={e => setSettings({ ...settings, eco_hysteresis_strict: parseFloat(e.target.value) })} className="w-full accent-neonBlue" />
-                <span className="text-white w-8">{settings.eco_hysteresis_strict}</span>
-              </div>
-              <p className="text-[10px] text-gray-500">Range when outside is freezing (&lt;20 F)</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-[1.2fr_0.8fr] gap-4 border-t border-gray-800 pt-4 pb-4">
-            <div className="bg-background/40 border border-gray-800 rounded-2xl p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <label className="text-xs text-gray-400 uppercase tracking-widest">Automatic Pi Restart</label>
-                  <p className="text-[11px] text-gray-500 mt-2">
-                    Reboots the Raspberry Pi after the configured uptime, but only once the HVAC is idle. Active heating and cooling runs are never interrupted.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSettings({ ...settings, auto_reboot_enabled: !settings.auto_reboot_enabled })}
-                  className={`min-w-[88px] rounded-full px-3 py-2 text-xs font-bold transition-colors ${
-                    settings.auto_reboot_enabled
-                      ? 'bg-neonBlue text-black'
-                      : 'bg-card border border-gray-700 text-gray-400'
-                  }`}
-                >
-                  {settings.auto_reboot_enabled ? 'ENABLED' : 'DISABLED'}
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-gray-500">Reboot Interval (Hours)</label>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={settings.auto_reboot_hours}
-                onChange={e => setSettings({ ...settings, auto_reboot_hours: parseFloat(e.target.value) })}
-                className="w-full bg-background border border-gray-700 rounded p-2 text-white"
-              />
-              <p className="text-[10px] text-gray-500 mt-2">Default 24 hours. The reboot waits until the system is idle.</p>
-              <div className="mt-4 space-y-2 rounded-2xl border border-gray-800 bg-background/40 p-3">
-                <div className="flex items-center justify-between gap-4 text-xs">
-                  <span className="text-gray-500">Last Pi Restart</span>
-                  <span className="text-white font-mono">{status ? formatTimestamp(status.last_reboot_at) : '--'}</span>
-                </div>
-                <div className="flex items-center justify-between gap-4 text-xs">
-                  <span className="text-gray-500">Next Scheduled Restart</span>
-                  <span className="text-white font-mono text-right">{status ? getNextRestartText() : '--'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-gray-700 pt-4 flex justify-between items-center">
-            <div className="flex flex-col">
-              <span className="text-xs text-gray-500">Filter Life</span>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">{settings.filter_current_hours.toFixed(1)} / {settings.filter_max_hours} hrs</span>
-                <button onClick={resetFilter} className="text-neonBlue hover:text-white"><RotateCcw size={14} /></button>
-              </div>
-            </div>
-            <button onClick={saveSettings} className="bg-neonBlue text-black font-bold px-6 py-2 rounded-xl flex items-center gap-2">
+            <button onClick={saveSettings} className="bg-neonBlue text-black font-bold px-6 py-3 rounded-2xl flex items-center gap-2 self-start md:self-auto">
               <Save size={16} /> Save
             </button>
           </div>
+
+          <SectionShell
+            title="Cost & Equipment"
+            description="Operational cost assumptions and system sizing used for the analytics estimates."
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <InputField
+                label="Electricity Cost ($/kWh)"
+                value={settings.cost_kwh}
+                step="0.01"
+                onChange={e => updateSetting('cost_kwh', parseFloat(e.target.value))}
+              />
+              <InputField
+                label="Gas Cost ($/Therm)"
+                value={settings.cost_therm}
+                step="0.01"
+                onChange={e => updateSetting('cost_therm', parseFloat(e.target.value))}
+              />
+              <InputField
+                label="AC Power (kW)"
+                value={settings.ac_kw}
+                step="0.1"
+                onChange={e => updateSetting('ac_kw', parseFloat(e.target.value))}
+              />
+              <InputField
+                label="Furnace Size (BTU)"
+                value={settings.furnace_btu}
+                step="1000"
+                onChange={e => updateSetting('furnace_btu', parseFloat(e.target.value))}
+              />
+            </div>
+          </SectionShell>
+
+          <SectionShell
+            title="Thermostat Behavior"
+            description="Comfort tuning for hysteresis, AUTO transitions, and low-outdoor-temperature fan cooling."
+          >
+            <div className="grid gap-4">
+              <SliderRow
+                title="Core Deadband"
+                description="Base hysteresis used for normal heating, cooling, and AUTO mode behavior."
+                value={settings.core_deadband}
+                min="0.1"
+                max="3"
+                step="0.1"
+                accentClass="accent-white"
+                onChange={e => updateSetting('core_deadband', parseFloat(e.target.value))}
+              />
+
+              <SliderRow
+                title="Mild Weather Deadband"
+                description="Expanded deadband used during eco mode when outside temperature is between 55 F and 75 F."
+                value={settings.eco_hysteresis_mild}
+                min="1"
+                max="6"
+                step="0.5"
+                accentClass="accent-neonGreen"
+                onChange={e => updateSetting('eco_hysteresis_mild', parseFloat(e.target.value))}
+              />
+
+              <SliderRow
+                title="Strict Weather Deadband"
+                description="Tighter eco-mode deadband used when outdoor temperature is below 20 F."
+                value={settings.eco_hysteresis_strict}
+                min="0.1"
+                max="2"
+                step="0.1"
+                accentClass="accent-neonBlue"
+                onChange={e => updateSetting('eco_hysteresis_strict', parseFloat(e.target.value))}
+              />
+
+              <SliderRow
+                title="AUTO Changeover Delay"
+                description="Wait time before AUTO can switch directly between heating and cooling families."
+                value={settings.auto_changeover_delay_minutes}
+                min="0"
+                max="10"
+                step="0.5"
+                accentClass="accent-amber-400"
+                onChange={e => updateSetting('auto_changeover_delay_minutes', parseFloat(e.target.value))}
+              />
+
+              <div className="rounded-2xl border border-gray-800 bg-card/60 p-4 md:p-5">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div className="max-w-xl">
+                    <h5 className={settingTitleClass}>AUTO Fan Cooling</h5>
+                    <p className={`${settingCopyClass} mt-1`}>
+                      When AUTO wants cooling and outside air is already cool enough, use the fan relay instead of the compressor.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateSetting('auto_fan_cool_enabled', !settings.auto_fan_cool_enabled)}
+                    className={`min-w-[92px] rounded-full px-3 py-2 text-xs font-bold transition-colors ${
+                      settings.auto_fan_cool_enabled
+                        ? 'bg-white text-black'
+                        : 'bg-background border border-gray-700 text-gray-400'
+                    }`}
+                  >
+                    {settings.auto_fan_cool_enabled ? 'ENABLED' : 'DISABLED'}
+                  </button>
+                </div>
+
+                <div className="mt-5 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-gray-500">Outside Temp Threshold</span>
+                    <span className="text-sm font-semibold text-white">{settings.auto_fan_cool_max_outside_temp} F</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="30"
+                    max="70"
+                    step="1"
+                    value={settings.auto_fan_cool_max_outside_temp}
+                    onChange={e => updateSetting('auto_fan_cool_max_outside_temp', parseFloat(e.target.value))}
+                    className="w-full accent-white"
+                  />
+                  <p className={settingCopyClass}>Below this outside temperature, AUTO cooling can switch to `FAN_COOL` instead of compressor cooling.</p>
+                </div>
+              </div>
+            </div>
+          </SectionShell>
+
+          <SectionShell
+            title="Maintenance & Restart"
+            description="Operational controls for unattended uptime, reboot scheduling, and filter tracking."
+          >
+            <div className="grid gap-4">
+              <div className="rounded-2xl border border-gray-800 bg-card/60 p-4 md:p-5">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div className="max-w-xl">
+                    <h5 className={settingTitleClass}>Automatic Pi Restart</h5>
+                    <p className={`${settingCopyClass} mt-1`}>
+                      Reboots the Raspberry Pi after the configured uptime, but only when the HVAC is idle. Active heating and cooling runs are never interrupted.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => updateSetting('auto_reboot_enabled', !settings.auto_reboot_enabled)}
+                    className={`min-w-[92px] rounded-full px-3 py-2 text-xs font-bold transition-colors ${
+                      settings.auto_reboot_enabled
+                        ? 'bg-neonBlue text-black'
+                        : 'bg-background border border-gray-700 text-gray-400'
+                    }`}
+                  >
+                    {settings.auto_reboot_enabled ? 'ENABLED' : 'DISABLED'}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-4">
+                <div className="rounded-2xl border border-gray-800 bg-card/60 p-4 md:p-5">
+                  <label className="text-xs font-medium text-gray-500">Reboot Interval (Hours)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={settings.auto_reboot_hours}
+                    onChange={e => updateSetting('auto_reboot_hours', parseFloat(e.target.value))}
+                    className={`${inputClass} mt-2`}
+                  />
+                  <p className={`${settingCopyClass} mt-2`}>Default 24 hours. If a reboot becomes due during a run, it waits until the system is idle.</p>
+                </div>
+
+                <div className="rounded-2xl border border-gray-800 bg-card/60 p-4 md:p-5">
+                  <div className="grid gap-3">
+                    <div className="flex items-center justify-between gap-4 text-sm">
+                      <span className="text-gray-500">Last Pi Restart</span>
+                      <span className="text-white font-mono text-right">{status ? formatTimestamp(status.last_reboot_at) : '--'}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4 text-sm">
+                      <span className="text-gray-500">Next Scheduled Restart</span>
+                      <span className="text-white font-mono text-right">{status ? getNextRestartText() : '--'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-800 bg-card/60 p-4 md:p-5">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h5 className={settingTitleClass}>Filter Life</h5>
+                    <p className={`${settingCopyClass} mt-1`}>Tracks accumulated runtime against the configured filter replacement interval.</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-lg font-bold text-white">{settings.filter_current_hours.toFixed(1)} / {settings.filter_max_hours} hrs</span>
+                    <button onClick={resetFilter} className="text-neonBlue hover:text-white transition-colors">
+                      <RotateCcw size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </SectionShell>
         </div>
       )}
 

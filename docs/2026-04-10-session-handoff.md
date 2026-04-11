@@ -25,6 +25,10 @@
   - `FAN_COOL` is enabled/configured from Analytics with `AUTO Fan Cooling` and an outdoor threshold
   - `FAN_COOL` uses the fan relay only and does not use the compressor cooling relay
   - the `AUTO` button and main room-temperature card now both reflect the concrete active state, including white for `FAN_COOL`
+- Cleaned up the Analytics configuration layout.
+  - reorganized Configuration into `Cost & Equipment`, `Thermostat Behavior`, and `Maintenance & Restart`
+  - converted the dense mixed control row into stacked settings rows/cards
+  - moved `AUTO Fan Cooling` to a full-width behavior row and grouped restart/filter controls together
 - Set up passwordless SSH from the main Windows machine to the Pi in the prior session and verified it works.
 
 ## Files Changed For AUTO Mode
@@ -41,6 +45,8 @@
 - [tests/test_api_settings.py](/C:/Users/Hound/Desktop/smart-thermostat/tests/test_api_settings.py)
 - [docs/superpowers/specs/2026-04-10-auto-fan-cool-design.md](/C:/Users/Hound/Desktop/smart-thermostat/docs/superpowers/specs/2026-04-10-auto-fan-cool-design.md)
 - [docs/superpowers/plans/2026-04-10-auto-fan-cool.md](/C:/Users/Hound/Desktop/smart-thermostat/docs/superpowers/plans/2026-04-10-auto-fan-cool.md)
+- [docs/superpowers/specs/2026-04-10-analytics-settings-cleanup-design.md](/C:/Users/Hound/Desktop/smart-thermostat/docs/superpowers/specs/2026-04-10-analytics-settings-cleanup-design.md)
+- [docs/superpowers/plans/2026-04-10-analytics-settings-cleanup.md](/C:/Users/Hound/Desktop/smart-thermostat/docs/superpowers/plans/2026-04-10-analytics-settings-cleanup.md)
 - [docs/superpowers/specs/2026-04-10-auto-changeover-delay-design.md](/C:/Users/Hound/Desktop/smart-thermostat/docs/superpowers/specs/2026-04-10-auto-changeover-delay-design.md)
 - [docs/superpowers/plans/2026-04-10-auto-changeover-delay.md](/C:/Users/Hound/Desktop/smart-thermostat/docs/superpowers/plans/2026-04-10-auto-changeover-delay.md)
 - [docs/superpowers/specs/2026-04-10-auto-mode-design.md](/C:/Users/Hound/Desktop/smart-thermostat/docs/superpowers/specs/2026-04-10-auto-mode-design.md)
@@ -54,6 +60,7 @@
 - Compressor lockout remains a separate cooling-only safety gate and still applies inside `AUTO`.
 - `FAN_COOL` bypasses the compressor lockout because it does not use the compressor relay.
 - `current_deadband` in status now reflects the configured core deadband unless eco mode overrides it.
+- The Analytics settings panel is now organized as a clean form with grouped sections instead of a dense mixed grid.
 - Automatic Pi restart scheduling is now anchored to the actual Pi boot time instead of the thermostat process start time.
 - Fan behavior is unchanged:
   - `fan_mode == "ON"` always energizes the fan relay
@@ -69,7 +76,7 @@
 - `npm run build` in `smart-thermostat/`
 
 ## Branch / PR Intent
-- Working branch for this session: `feature/auto-fan-cool`
+- Working branch for this session: `feature/analytics-settings-cleanup`
 - Preferred flow remains:
   1. commit verified changes on the feature branch
   2. push branch
