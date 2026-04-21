@@ -23,8 +23,13 @@ settings.json
 .DS_Store
 dist/
 .worktrees/
+tmp*/
 
 # Private local notes and tests
 docs/
 tests/
+!tests/
+tests/*
+!tests/test_remote_api.py
+!tests/test_remote_control_logic.py
 smart-thermostat/src/pages/*.test.js

@@ -26,6 +26,8 @@ function Analytics() {
     auto_heat_wait_max_outside_temp: 50,
     auto_heat_wait_minutes: 15,
     auto_heat_wait_min_rise: 0.5,
+    remote_max_delta: 15,
+    remote_sample_max_age_seconds: 300,
     auto_reboot_enabled: false,
     auto_reboot_hours: 24,
   });

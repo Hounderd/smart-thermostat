@@ -1,12 +1,15 @@
-from fastapi import FastAPI, Request
+import math
+import os
+import secrets
+import json
+import sqlite3
+import time
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
-import json
-import os
-import sqlite3
-import time
+from pydantic import BaseModel, Field, field_validator
 from status_sync import merge_control_into_status
 
 app = FastAPI()
@@ -46,7 +49,14 @@ class ControlSettings(BaseModel):
     eco: bool
 
 class RemoteData(BaseModel):
-    temp: float
+    temp: float = Field(..., ge=20.0, le=100.0)
+
+    @field_validator("temp")
+    @classmethod
+    def validate_finite_temperature(cls, value):
+        if not math.isfinite(value):
+            raise ValueError("Temperature must be finite")
+        return value
 
 class SystemSettings(BaseModel):
     cost_kwh: float
@@ -66,6 +76,8 @@ class SystemSettings(BaseModel):
     auto_heat_wait_max_outside_temp: float
     auto_heat_wait_minutes: float
     auto_heat_wait_min_rise: float
+    remote_max_delta: float
+    remote_sample_max_age_seconds: float
     auto_reboot_enabled: bool
     auto_reboot_hours: float
 
@@ -126,8 +138,19 @@ def update_settings(s: SystemSettings):
         json.dump(s.model_dump(), f)
     return {"status": "saved"}
 
+def validate_remote_token(request: Request):
+    expected_token = os.environ.get("REMOTE_SENSOR_TOKEN")
+    if not expected_token:
+        raise HTTPException(status_code=503, detail="Remote sensor token is not configured")
+
+    provided_token = request.headers.get("X-Remote-Token")
+    if not provided_token or not secrets.compare_digest(provided_token, expected_token):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
 @app.post("/remote")
-def receive_remote(data: RemoteData):
+def receive_remote(request: Request, data: RemoteData):
+    validate_remote_token(request)
     with open(REMOTE_FILE, "w") as f:
         json.dump({"temp": data.temp, "timestamp": time.time()}, f)
     return {"status": "received"}

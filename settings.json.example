@@ -1,4 +1,5 @@
 {
+    "core_deadband": 0.5,
     "cost_kwh": 0.12,
     "cost_therm": 1.00,
     "ac_kw": 3.0,
@@ -7,6 +8,16 @@
     "filter_current_hours": 0,
     "eco_hysteresis_mild": 3.0,
     "eco_hysteresis_strict": 0.5,
+    "auto_fan_cool_enabled": true,
+    "auto_fan_cool_max_outside_temp": 50.0,
+    "auto_fan_cool_fallback_minutes": 10.0,
+    "auto_fan_cool_min_drop": 0.5,
+    "auto_changeover_delay_minutes": 2,
+    "auto_heat_wait_max_outside_temp": 50.0,
+    "auto_heat_wait_minutes": 15.0,
+    "auto_heat_wait_min_rise": 0.5,
+    "remote_max_delta": 15.0,
+    "remote_sample_max_age_seconds": 300.0,
     "auto_reboot_enabled": false,
     "auto_reboot_hours": 24
 }
