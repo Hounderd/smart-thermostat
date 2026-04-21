@@ -1,12 +1,14 @@
 import RPi.GPIO as GPIO
-import time
-import board
 import json
+import math
 import os
 import sqlite3
 import subprocess
 import threading
+import time
 from datetime import datetime
+
+import board
 from auto_reboot import (
     calculate_next_reboot_due_at,
     is_auto_reboot_due,
@@ -57,6 +59,12 @@ class SmartThermostat:
         self.target_temp = 72.0
         
         self.current_temp = 0.0
+        self.local_temp = 0.0
+        self.remote_temp = None
+        self.effective_heat_temp = 0.0
+        self.effective_cool_temp = 0.0
+        self.remote_status = "missing"
+        self.remote_reason = "Remote sensor file not found"
         self.outside_temp = None
         self.forecast_temp = None
         
@@ -178,6 +186,8 @@ class SmartThermostat:
             "auto_heat_wait_max_outside_temp": 50.0,
             "auto_heat_wait_minutes": 15.0,
             "auto_heat_wait_min_rise": 0.5,
+            "remote_max_delta": 15.0,
+            "remote_sample_max_age_seconds": 300.0,
             "cost_kwh": 0.14, "cost_therm": 1.10, "ac_kw": 3.5, "furnace_btu": 80000,
             "auto_reboot_enabled": False, "auto_reboot_hours": 24,
         }
@@ -207,7 +217,7 @@ class SmartThermostat:
 
     def update_heat_loss_rate(self):
         if self.is_active or self.mode != "HEAT": 
-            self.last_temp_sample = self.current_temp
+            self.last_temp_sample = self.effective_heat_temp
             self.last_temp_time = time.time()
             return
 
@@ -215,12 +225,12 @@ class SmartThermostat:
         delta = now - self.last_temp_time
         if delta < 600: return 
 
-        temp_drop = self.last_temp_sample - self.current_temp
+        temp_drop = self.last_temp_sample - self.effective_heat_temp
         if temp_drop > 0:
             current_rate = (temp_drop / delta) * 3600
             self.heat_loss_rate = (self.heat_loss_rate * 0.7) + (current_rate * 0.3)
 
-        self.last_temp_sample = self.current_temp
+        self.last_temp_sample = self.effective_heat_temp
         self.last_temp_time = now
 
     def calculate_eco_deadband(self):
@@ -273,6 +283,106 @@ class SmartThermostat:
     def get_auto_heat_wait_min_rise(self):
         return max(0.0, float(self.settings.get("auto_heat_wait_min_rise", 0.5)))
 
+    def get_remote_max_delta(self):
+        return max(0.0, float(self.settings.get("remote_max_delta", 15.0)))
+
+    def get_remote_sample_max_age_seconds(self):
+        return max(0.0, float(self.settings.get("remote_sample_max_age_seconds", 300.0)))
+
+    def get_local_temperature(self):
+        temp_c = 0.0
+        if self.sensor_adt:
+            temp_c = self.sensor_adt.temperature
+        elif self.sensor_bme:
+            temp_c = self.sensor_bme.temperature - 2.0
+        return round((temp_c * 9 / 5) + 32, 2)
+
+    def load_remote_snapshot(self, local_temp, now=None):
+        now = time.time() if now is None else now
+        snapshot = {
+            "active": False,
+            "temp": None,
+            "status": "missing",
+            "reason": "Remote sensor file not found",
+        }
+
+        if not os.path.exists(REMOTE_FILE):
+            return snapshot
+
+        try:
+            with open(REMOTE_FILE, "r") as f:
+                rdata = json.load(f)
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            snapshot["status"] = "error"
+            snapshot["reason"] = "Remote sensor file could not be read"
+            return snapshot
+
+        try:
+            remote_temp = float(rdata["temp"])
+            timestamp = float(rdata["timestamp"])
+        except (KeyError, TypeError, ValueError):
+            snapshot["status"] = "invalid"
+            snapshot["reason"] = "Remote sensor payload is malformed"
+            return snapshot
+
+        snapshot["temp"] = round(remote_temp, 2)
+
+        if not math.isfinite(remote_temp) or not math.isfinite(timestamp):
+            snapshot["status"] = "invalid"
+            snapshot["reason"] = "Remote sensor payload is non-finite"
+            return snapshot
+
+        if remote_temp < 20.0 or remote_temp > 100.0:
+            snapshot["status"] = "invalid"
+            snapshot["reason"] = "Remote sensor payload is out of range"
+            return snapshot
+
+        age = now - timestamp
+        if age < 0:
+            snapshot["status"] = "invalid"
+            snapshot["reason"] = "Remote sensor timestamp is in the future"
+            return snapshot
+
+        if age > self.get_remote_sample_max_age_seconds():
+            snapshot["status"] = "stale"
+            snapshot["reason"] = "Remote sensor sample is stale"
+            return snapshot
+
+        if abs(remote_temp - local_temp) > self.get_remote_max_delta():
+            snapshot["status"] = "rejected_outlier"
+            snapshot["reason"] = "Remote sensor delta exceeds the configured limit"
+            return snapshot
+
+        snapshot["active"] = True
+        snapshot["status"] = "fresh"
+        snapshot["reason"] = "Remote sensor sample accepted"
+        return snapshot
+
+    def apply_temperature_inputs(self, local_temp, remote_snapshot):
+        remote_temp = remote_snapshot.get("temp")
+        remote_active = bool(remote_snapshot.get("active"))
+
+        self.local_temp = local_temp
+        self.remote_temp = remote_temp
+        self.remote_active = remote_active
+        self.remote_status = remote_snapshot.get("status", "missing")
+        self.remote_reason = remote_snapshot.get("reason", "Remote sensor unavailable")
+
+        if remote_active and remote_temp is not None:
+            averaged_temp = round((local_temp + remote_temp) / 2, 2)
+            self.effective_heat_temp = averaged_temp
+            self.effective_cool_temp = averaged_temp
+        else:
+            self.effective_heat_temp = local_temp
+            self.effective_cool_temp = local_temp
+
+        self.current_temp = self.select_display_temperature(local_temp)
+
+    def select_display_temperature(self, local_temp):
+        if self.remote_active and self.remote_temp is not None:
+            return self.effective_heat_temp
+        return local_temp
+
     def should_wait_for_auto_heat(self):
         if self.get_auto_heat_wait_seconds() <= 0:
             return False
@@ -290,7 +400,7 @@ class SmartThermostat:
     def start_auto_heat_wait(self, now):
         self.auto_heat_wait_pending = True
         self.auto_heat_wait_started_at = now
-        self.auto_heat_wait_start_temp = self.current_temp
+        self.auto_heat_wait_start_temp = self.effective_heat_temp
         self.auto_heat_wait_until = now + self.get_auto_heat_wait_seconds()
 
     def should_continue_waiting_for_auto_heat(self, now):
@@ -300,7 +410,7 @@ class SmartThermostat:
         if self.auto_heat_wait_until is None or now < self.auto_heat_wait_until:
             return True
 
-        temp_rise = self.current_temp - self.auto_heat_wait_start_temp
+        temp_rise = self.effective_heat_temp - self.auto_heat_wait_start_temp
         if temp_rise >= self.get_auto_heat_wait_min_rise():
             self.start_auto_heat_wait(now)
             return True
@@ -310,7 +420,7 @@ class SmartThermostat:
 
     def begin_fan_cool_attempt(self, started_at=None):
         self.fan_cool_started_at = time.time() if started_at is None else started_at
-        self.fan_cool_start_temp = self.current_temp
+        self.fan_cool_start_temp = self.effective_cool_temp
 
     def clear_fan_cool_attempt(self):
         self.fan_cool_started_at = 0
@@ -331,7 +441,7 @@ class SmartThermostat:
         if (now - self.fan_cool_started_at) < fallback_seconds:
             return False
 
-        temp_drop = self.fan_cool_start_temp - self.current_temp
+        temp_drop = self.fan_cool_start_temp - self.effective_cool_temp
         return temp_drop < self.get_auto_fan_cool_min_drop()
 
     def remember_stopped_call(self, call, stopped_at=None):
@@ -362,7 +472,7 @@ class SmartThermostat:
         if now.hour >= target_hour: return False 
         if now.hour < 4: return False 
         
-        temp_gap = self.target_temp - self.current_temp
+        temp_gap = self.target_temp - self.effective_heat_temp
         if temp_gap <= 0: return False
         
         gain_rate = 3.0 
@@ -410,11 +520,8 @@ class SmartThermostat:
         raw_iaq = (100 - (hum_score + gas_score)) * 5
         self.iaq_score = round(max(0, min(500, raw_iaq)))
 
-    def get_readings(self):
-        temp_c = 0
-        if self.sensor_adt: temp_c = self.sensor_adt.temperature
-        elif self.sensor_bme: temp_c = self.sensor_bme.temperature - 2.0 
-        local_temp = round((temp_c * 9/5) + 32, 2)
+    def get_readings(self, now=None):
+        local_temp = self.get_local_temperature()
         
         if self.sensor_bme:
             self.humidity = round(self.sensor_bme.humidity, 1)
@@ -422,37 +529,13 @@ class SmartThermostat:
             self.gas = self.sensor_bme.gas 
             self.calculate_iaq()
             self.gas = round(self.gas / 1000, 1)
-            
-        self.remote_active = False
-        final_temp = local_temp
 
-        if os.path.exists(REMOTE_FILE):
-            try:
-                with open(REMOTE_FILE, "r") as f:
-                    rdata = json.load(f)
-                    if time.time() - rdata.get("timestamp", 0) < 300:
-                        remote_temp = rdata.get("temp", local_temp)
-                        self.remote_active = True
-                        if self.mode == "COOL": final_temp = max(local_temp, remote_temp)
-                        elif self.mode == "HEAT": final_temp = min(local_temp, remote_temp)
-                        else: final_temp = round((local_temp + remote_temp) / 2, 2)
-            except: pass
-        self.current_temp = final_temp
+        remote_snapshot = self.load_remote_snapshot(local_temp, now=now)
+        self.apply_temperature_inputs(local_temp, remote_snapshot)
 
     def write_status(self):
         if int(time.time()) % 10 == 0:
             self.settings = self.load_settings()
-
-        local_c = 0
-        if self.sensor_adt: local_c = self.sensor_adt.temperature
-        elif self.sensor_bme: local_c = self.sensor_bme.temperature - 2.0
-        local_temp = round((local_c * 9/5) + 32, 2)
-        
-        remote_temp = None
-        if self.remote_active and os.path.exists(REMOTE_FILE):
-            try:
-                with open(REMOTE_FILE, "r") as f: remote_temp = json.load(f).get("temp")
-            except: pass
         
         current_deadband = self.get_core_deadband()
         if self.eco_mode: current_deadband = self.calculate_eco_deadband()
@@ -464,8 +547,12 @@ class SmartThermostat:
             "active_call": self.active_call,
             "last_active_call": self.last_stopped_call,
             "temp": self.current_temp,
-            "local_temp": local_temp,
-            "remote_temp": remote_temp,
+            "local_temp": self.local_temp,
+            "remote_temp": self.remote_temp,
+            "effective_heat_temp": self.effective_heat_temp,
+            "effective_cool_temp": self.effective_cool_temp,
+            "remote_status": self.remote_status,
+            "remote_reason": self.remote_reason,
             "outside_temp": self.outside_temp,
             "forecast_temp": self.forecast_temp, 
             "heat_loss": self.heat_loss_rate,
@@ -603,7 +690,7 @@ class SmartThermostat:
     def logic_loop(self, elapsed_seconds, now=None):
         now = time.time() if now is None else now
         self.load_control()
-        self.get_readings()
+        self.get_readings(now=now)
         self.update_heat_loss_rate()
 
         if self.is_active:
@@ -617,7 +704,7 @@ class SmartThermostat:
             if self.mode == "COOL": active_target += 2
             if self.mode == "HEAT": active_target -= 2
             if self.mode == "HEAT" and self.forecast_temp and self.outside_temp:
-                if (self.forecast_temp > self.outside_temp + 3) and (self.current_temp > 64):
+                if (self.forecast_temp > self.outside_temp + 3) and (self.effective_heat_temp > 64):
                     active_target -= 1 
             if self.mode == "HEAT" and self.check_smart_recovery():
                 active_target = self.target_temp 
@@ -637,23 +724,23 @@ class SmartThermostat:
             if (now - self.last_ac_time) < self.CYCLE_DELAY:
                 self.locked_out = True
 
-            if self.current_temp > (active_target + active_hysteresis):
+            if self.effective_cool_temp > (active_target + active_hysteresis):
                 if self.active_call == "FAN_COOL":
                     self.stop_active_call()
                 if not self.is_active and not self.locked_out:
                     self.start_call("COOL")
             
-            elif self.current_temp < (active_target - active_hysteresis):
+            elif self.effective_cool_temp < (active_target - active_hysteresis):
                 if self.active_call == "COOL":
                     self.stop_active_call()
         
         elif self.mode == "HEAT":
             self.clear_auto_heat_wait()
-            if self.current_temp < (active_target - active_hysteresis):
+            if self.effective_heat_temp < (active_target - active_hysteresis):
                 if not self.is_active:
                     self.start_call("HEAT")
             
-            elif self.current_temp > (active_target + active_hysteresis):
+            elif self.effective_heat_temp > (active_target + active_hysteresis):
                 if self.active_call == "HEAT":
                     self.stop_active_call()
 
@@ -663,7 +750,7 @@ class SmartThermostat:
 
             if self.is_cooling_call(self.active_call):
                 self.clear_auto_heat_wait()
-                if self.current_temp < low_threshold:
+                if self.effective_cool_temp < low_threshold:
                     self.stop_active_call()
                 elif self.active_call == "FAN_COOL" and self.should_fall_back_to_compressor_cool(now):
                     if (now - self.last_ac_time) < self.CYCLE_DELAY:
@@ -672,10 +759,15 @@ class SmartThermostat:
                         self.stop_active_call()
                         self.start_call("COOL")
             elif self.active_call == "HEAT":
-                if self.current_temp > high_threshold:
+                if self.effective_heat_temp > high_threshold:
                     self.stop_active_call()
             else:
-                if self.current_temp > high_threshold:
+                cooling_gap = self.effective_cool_temp - high_threshold
+                heating_gap = low_threshold - self.effective_heat_temp
+                need_cooling = cooling_gap > 0
+                need_heating = heating_gap > 0
+
+                if need_cooling and (not need_heating or cooling_gap > heating_gap):
                     self.clear_auto_heat_wait()
                     requested_cooling_call = "FAN_COOL" if self.should_use_auto_fan_cool() else "COOL"
                     changeover_deadline = self.get_auto_changeover_deadline(requested_cooling_call)
@@ -686,7 +778,7 @@ class SmartThermostat:
                         self.locked_out = True
                     else:
                         self.start_call(requested_cooling_call)
-                elif self.current_temp < low_threshold:
+                elif need_heating:
                     changeover_deadline = self.get_auto_changeover_deadline("HEAT")
                     if changeover_deadline and now < changeover_deadline:
                         self.clear_auto_heat_wait()

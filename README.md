@@ -44,7 +44,7 @@ A minimal 3D-printable case designed specifically to house the Raspberry Pi alon
   * Provides configurable cost estimation for electric cooling and gas heating.
   * Tracks filter life based on active HVAC runtime.
 * **Air Quality Monitoring:** Supports the **BME680** sensor for humidity, pressure, gas resistance, and IAQ calculations.
-* **Remote Sensors:** Accepts external temperature sensor updates via REST for remote comfort control.
+* **Remote Sensors:** Accepts external temperature sensor updates via REST for remote comfort control, with token auth, freshness checks, and outlier rejection.
 * **Operational Hardening:** Supports idle-only Raspberry Pi auto reboot with status visibility in the Analytics dashboard.
 * **Modern UI:** Responsive React dashboard with full local control and read-only external access.
 
@@ -149,6 +149,11 @@ Most settings can be changed in the Analytics dashboard, or directly in `setting
   "auto_fan_cool_fallback_minutes": 10.0,
   "auto_fan_cool_min_drop": 0.5,
   "auto_changeover_delay_minutes": 2,
+  "auto_heat_wait_max_outside_temp": 50.0,
+  "auto_heat_wait_minutes": 15.0,
+  "auto_heat_wait_min_rise": 0.5,
+  "remote_max_delta": 15.0,
+  "remote_sample_max_age_seconds": 300.0,
   "auto_reboot_enabled": false,
   "auto_reboot_hours": 24
 }
@@ -156,9 +161,13 @@ Most settings can be changed in the Analytics dashboard, or directly in `setting
 
 ### Key Behavior Notes
 * `AUTO` uses the configured `core_deadband` around a single target temperature.
+* Remote sensors are trusted-average inputs once they pass auth, freshness, and outlier checks:
+  * `HEAT`, `COOL`, and `AUTO` all use the average of the local and trusted remote readings.
+  * If the remote sample is missing, stale, malformed, out of range, or rejected as an outlier, control falls back to the local sensor only.
 * `AUTO Fan Cooling` can choose `FAN_COOL` below the configured outside temperature threshold.
 * If `FAN_COOL` does not reduce room temperature by at least `auto_fan_cool_min_drop` within `auto_fan_cool_fallback_minutes`, `AUTO` falls back to compressor `COOL`.
 * `auto_changeover_delay_minutes` blocks direct heating/cooling family swaps in `AUTO`.
+* Remote samples are ignored when they are stale, malformed, out of range, or differ from the local sensor by more than `remote_max_delta`.
 * Automatic reboot waits until the HVAC is idle before requesting a full Raspberry Pi reboot.
 
 ## Security & Access Control
@@ -167,6 +176,7 @@ The FastAPI app applies IP-based write protection:
 
 * **Local Network (`192.168.x.x` or `127.0.0.1`):** Full read/write control
 * **External Network:** Read-only access; status is visible but control changes are blocked
+* **Remote sensor updates:** `POST /remote` is the only write path available externally, and it now requires an `X-Remote-Token` header matching the server's `REMOTE_SENSOR_TOKEN` environment variable
 
 ##
 Created with love by [Hounderd](https://github.com/Hounderd).
