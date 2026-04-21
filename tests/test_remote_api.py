@@ -10,6 +10,7 @@ import api
 class RemoteApiTests(unittest.TestCase):
     def setUp(self):
         self.original_token = os.environ.get("REMOTE_SENSOR_TOKEN")
+        self.original_trusted_ips = os.environ.get("REMOTE_SENSOR_TRUSTED_IPS")
         os.environ["REMOTE_SENSOR_TOKEN"] = "secret-token"
         self.client = TestClient(api.app)
 
@@ -18,6 +19,11 @@ class RemoteApiTests(unittest.TestCase):
             os.environ.pop("REMOTE_SENSOR_TOKEN", None)
         else:
             os.environ["REMOTE_SENSOR_TOKEN"] = self.original_token
+
+        if self.original_trusted_ips is None:
+            os.environ.pop("REMOTE_SENSOR_TRUSTED_IPS", None)
+        else:
+            os.environ["REMOTE_SENSOR_TRUSTED_IPS"] = self.original_trusted_ips
 
     def test_remote_post_rejects_missing_token(self):
         response = self.client.post("/remote", json={"temp": 72.0})
@@ -43,6 +49,23 @@ class RemoteApiTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 503)
+
+    def test_remote_post_accepts_trusted_ip_without_token(self):
+        os.environ["REMOTE_SENSOR_TRUSTED_IPS"] = "192.168.1.2"
+        trusted_client = TestClient(api.app, client=("192.168.1.2", 51532))
+
+        with patch("builtins.open", mock_open()):
+            response = trusted_client.post("/remote", json={"temp": 72.0})
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_remote_post_rejects_untrusted_ip_without_token_even_when_allowlist_exists(self):
+        os.environ["REMOTE_SENSOR_TRUSTED_IPS"] = "192.168.1.2"
+        untrusted_client = TestClient(api.app, client=("192.168.1.9", 51532))
+
+        response = untrusted_client.post("/remote", json={"temp": 72.0})
+
+        self.assertEqual(response.status_code, 403)
 
     def test_remote_post_accepts_valid_token_and_persists_value(self):
         captured = {}
