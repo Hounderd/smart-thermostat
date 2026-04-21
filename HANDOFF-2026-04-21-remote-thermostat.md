@@ -10,7 +10,7 @@ This branch hardens the remote thermostat input path while preserving the prefer
 
 The final behavior is:
 
-- `POST /remote` requires `X-Remote-Token` matching `REMOTE_SENSOR_TOKEN`
+- `POST /remote` requires `X-Remote-Token` matching `REMOTE_SENSOR_TOKEN`, unless the request comes from an IP listed in `REMOTE_SENSOR_TRUSTED_IPS`
 - Remote payloads are validated before they are written
 - Remote samples are trusted only when they are fresh, readable, in range, and not an outlier versus the local sensor
 - When the remote sample is trusted, `HEAT`, `COOL`, and `AUTO` all use the average of the local and remote temperatures
@@ -34,7 +34,7 @@ The final behavior is:
 In `api.py`:
 
 - Added `REMOTE_SENSOR_TOKEN` enforcement for `POST /remote`
-- Added explicit `X-Remote-Token` validation
+- Added explicit `X-Remote-Token` validation with a narrow `REMOTE_SENSOR_TRUSTED_IPS` allowlist path for legacy hardware that cannot send headers
 - Added temperature validation for remote payloads
   - finite only
   - `20F` to `100F`
@@ -119,13 +119,15 @@ Expected deployment steps on the Raspberry Pi:
    - `npm install` if needed
    - `npm run build`
 4. Set `REMOTE_SENSOR_TOKEN` for the API process environment
+5. If the remote sender cannot send headers, set `REMOTE_SENSOR_TRUSTED_IPS` to the sensor's exact IP
 5. Restart:
    - `pm2 restart thermostat`
    - `pm2 restart thermostat-api`
 
-The remote sender must now include:
+The remote sender must now include one of:
 
 - header: `X-Remote-Token: <same token as REMOTE_SENSOR_TOKEN>`
+- source IP included in `REMOTE_SENSOR_TRUSTED_IPS`
 
 ## Cleanup Status
 

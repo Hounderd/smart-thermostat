@@ -176,7 +176,7 @@ The FastAPI app applies IP-based write protection:
 
 * **Local Network (`192.168.x.x` or `127.0.0.1`):** Full read/write control
 * **External Network:** Read-only access; status is visible but control changes are blocked
-* **Remote sensor updates:** `POST /remote` is the only write path available externally, and it now requires an `X-Remote-Token` header matching the server's `REMOTE_SENSOR_TOKEN` environment variable
+* **Remote sensor updates:** `POST /remote` is the only write path available externally. By default it requires an `X-Remote-Token` header matching the server's `REMOTE_SENSOR_TOKEN` environment variable. For legacy hardware that cannot send headers, you can allow specific sensor IPs through the `REMOTE_SENSOR_TRUSTED_IPS` environment variable.
 
 ##
 Created with love by [Hounderd](https://github.com/Hounderd).

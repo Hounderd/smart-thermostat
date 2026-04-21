@@ -82,6 +82,17 @@ class SystemSettings(BaseModel):
     auto_reboot_hours: float
 
 
+def get_remote_client_ip(request: Request):
+    if request.client and request.client.host:
+        return request.client.host
+    return ""
+
+
+def get_trusted_remote_ips():
+    raw_value = os.environ.get("REMOTE_SENSOR_TRUSTED_IPS", "")
+    return {value.strip() for value in raw_value.split(",") if value.strip()}
+
+
 def frontend_path(*parts):
     return os.path.join(APP_DIR, "smart-thermostat", "dist", *parts)
 
@@ -139,6 +150,10 @@ def update_settings(s: SystemSettings):
     return {"status": "saved"}
 
 def validate_remote_token(request: Request):
+    client_ip = get_remote_client_ip(request)
+    if client_ip and client_ip in get_trusted_remote_ips():
+        return
+
     expected_token = os.environ.get("REMOTE_SENSOR_TOKEN")
     if not expected_token:
         raise HTTPException(status_code=503, detail="Remote sensor token is not configured")
